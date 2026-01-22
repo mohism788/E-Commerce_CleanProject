@@ -1,0 +1,19 @@
+﻿using Microsoft.AspNetCore.Identity;
+
+namespace E_Commerce.Models
+{
+    public class User :IdentityUser
+    {
+        
+        public DateTime CreatedAt { get; set; }
+       
+
+
+        //navigation property
+        public List<Product> Products { get; set; }
+
+        public List<Order> Orders { get; set; }
+
+        public List<Review> Reviews { get; set; }
+    }
+}
