@@ -2,9 +2,9 @@
 
 namespace E_Commerce.Repositrories.Interfaces
 {
-    public interface IProductRepository
+    public interface IProductRepository : IGenericRepository<Product>
     {
-        // Define method signatures for product-related data operations 
+        /*// Define method signatures for product-related data operations 
 
         //get products
         Task<IEnumerable<Product>> GetAllProductsAsync();
@@ -12,7 +12,7 @@ namespace E_Commerce.Repositrories.Interfaces
         Task AddProductAsync(Product product);
         Task UpdateProductAsync(Product product);
         Task DeleteProductAsync(int id);
-
+        */
         //get seller Id by product id
         Task<Guid> GetSellerIdByProductIdAsync(int productId);
 

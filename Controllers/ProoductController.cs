@@ -23,7 +23,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var products = await _productRepo.GetAllProductsAsync();
+                var products = await _productRepo.GetAllAsync();
 
                 return new OkObjectResult(products);
 
@@ -44,7 +44,12 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var product = await _productRepo.GetProductByIdAsync(id);
+                
+                var product = await _productRepo.GetByIdAsync(id);
+                if (product == null)
+                {
+                    return new NotFoundObjectResult($"Product with id {id} not found");
+                }
                 ProductDto productDto = new ProductDto
                 {
                     Id = product.Id,
@@ -85,7 +90,7 @@ namespace E_Commerce.Controllers
                     SellerId = createProductDto.SellerId,
                     CategoryId = createProductDto.CategoryId
                 };
-                await _productRepo.AddProductAsync(product);
+                await _productRepo.AddAsync(product);
                 return new OkObjectResult("Product added successfully");
             }
             catch (ArgumentNullException anEx)
@@ -111,8 +116,12 @@ namespace E_Commerce.Controllers
             {
                
 
-                var product = await _productRepo.GetProductByIdAsync(id);
+                var product = await _productRepo.GetByIdAsync(id);
 
+                if (product == null)
+                {
+                    return new NotFoundObjectResult($"Product with id {id} not found");
+                }
 
                 product.Stock = updateProductDto.Stock;
                 product.Price = updateProductDto.Price;
@@ -122,7 +131,7 @@ namespace E_Commerce.Controllers
 
 
 
-                await _productRepo.UpdateProductAsync(product);
+                await _productRepo.UpdateAsync(product);
                 return new OkObjectResult("Product updated successfully");
             }
             catch (KeyNotFoundException knfEx)
@@ -144,7 +153,13 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                await _productRepo.DeleteProductAsync(id);
+                if (!await _productRepo.ExistsAsync(id))
+                {
+                    return new NotFoundObjectResult($"Product with id {id} not found");
+                }
+
+                await _productRepo.DeleteAsync(id);
+
                 return new OkObjectResult("Product deleted successfully");
             }
             catch (KeyNotFoundException knfEx)

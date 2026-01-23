@@ -1,6 +1,7 @@
 using E_Commerce.Data;
 using E_Commerce.Models;
 using E_Commerce.Repositrories;
+using E_Commerce.Repositrories.E_Commerce.Repositories;
 using E_Commerce.Repositrories.Interfaces;
 using E_Commerce.TokenService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -81,6 +82,7 @@ options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenVali
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 var app = builder.Build();
 
