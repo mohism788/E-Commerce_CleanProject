@@ -1,7 +1,9 @@
 ﻿using E_Commerce.Data;
+using E_Commerce.DTOs.ReviewDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.E_Commerce.Repositories;
 using E_Commerce.Repositrories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace E_Commerce.Repositrories
 {
@@ -11,6 +13,46 @@ namespace E_Commerce.Repositrories
         public ReviewRepository(ApplicationDbContext dbContext) : base(dbContext)
         {
             _dbContext = dbContext;
+        }
+
+        public async Task<IEnumerable<ReviewDto>> GetReviewsByProductIdAsync(int productId)
+        {
+            //return all reviews for a product with each review's username by using the userId in both reviews and users table
+            /* return await _dbContext.Reviews
+                 .AsNoTracking()
+                 .Where(r => r.ProductId == productId)
+                 .Include(r => r.User)// Include the User navigation property
+                 .Select(r=> new ReviewDto { 
+
+                     ProductId = productId,
+                     Rating = r.Rating,
+                     Comment = r.Comment,
+                     CreatedAt = r.CreatedAt,
+                     UserId = r.UserId,
+                     Username = r.User.UserName // Map the Username from the User navigation property
+                 }
+
+                 )
+                 .ToListAsync();*/
+
+            return await _dbContext.Reviews
+                                   .AsNoTracking()
+                                   .Where(r => r.ProductId == productId)
+                                   .Join<Review, User, string, ReviewDto>(  // <TOuter, TInner, TKey, TResult>
+                                       _dbContext.Users,
+                                       review => review.UserId.ToString(),
+                                       user => user.Id,
+                                       (review, user) => new ReviewDto
+                                       {
+                                           ProductId = review.ProductId,
+                                           Rating = review.Rating,
+                                           Comment = review.Comment,
+                                           CreatedAt = review.CreatedAt,
+                                           UserId = review.UserId,
+                                           Username = user.UserName
+                                       })
+                                         .ToListAsync();
+
         }
     }
 }
