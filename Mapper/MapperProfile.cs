@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using E_Commerce.DTOs.CartItemDTO;
 using E_Commerce.DTOs.CategoryDTO;
 using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.DTOs.ReviewDTO;
@@ -27,6 +28,11 @@ namespace E_Commerce.Mapper
             CreateMap<Review, ReviewDto>().ReverseMap();
             CreateMap<Review, CreateReviewDto>().ReverseMap();
             CreateMap<Review, UpdateReviewDto>().ReverseMap();
+
+            //CartItem Mappings
+            CreateMap<CartItem, CartItemDto>().ReverseMap();
+            CreateMap<CartItem, CreateCartItemDto>().ReverseMap();
+            CreateMap<CartItem, UpdateCartItemDto>().ReverseMap();
 
 
         }
