@@ -8,11 +8,11 @@ namespace E_Commerce.Controllers
 {
     [Route("api/product")]
     [ApiController]
-    public class ProoductController
+    public class ProductController
     {
         private readonly IProductRepository _productRepo;
 
-        public ProoductController(IProductRepository productRepo)
+        public ProductController(IProductRepository productRepo)
         {
             _productRepo = productRepo;
         }
@@ -69,6 +69,51 @@ namespace E_Commerce.Controllers
             catch (Exception ex)
             {
                 return new ObjectResult($"An error occurred while retrieving the product: {ex.Message}")
+                {
+                    StatusCode = 500
+                };
+            }
+        }
+
+
+        //get all products by seller id
+        [HttpGet("seller/{sellerId}")]
+        public async Task<IActionResult> GetProductsBySellerId(Guid sellerId)
+        {
+            try
+            {
+                var products = await _productRepo.GetProductsBySellerIdAsync(sellerId);
+                return new OkObjectResult(products);
+            }
+            catch (KeyNotFoundException  knfEx)
+            {
+                return new NotFoundObjectResult(knfEx.Message);
+            }
+            catch (Exception ex)
+            {
+                return new ObjectResult($"An error occurred while retrieving products: {ex.Message}")
+                {
+                    StatusCode = 500
+                };
+            }
+        }
+
+        //get all products in category
+        [HttpGet("category/{categoryId}")]
+        public async Task<IActionResult> GetProductsInCategory(int categoryId)
+        {
+            try
+            {
+                var products = await _productRepo.GetAllProductInCategoryAsync(categoryId);
+                return new OkObjectResult(products);
+            }
+            catch (KeyNotFoundException knfEx)
+            {
+                return new NotFoundObjectResult(knfEx.Message);
+            }
+            catch (Exception ex)
+            {
+                return new ObjectResult($"An error occurred while retrieving products: {ex.Message}")
                 {
                     StatusCode = 500
                 };
