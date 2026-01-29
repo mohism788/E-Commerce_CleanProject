@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using E_Commerce.DTOs.CartItemDTO;
 using E_Commerce.DTOs.CategoryDTO;
+using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.DTOs.ReviewDTO;
@@ -37,9 +38,19 @@ namespace E_Commerce.Mapper
 
             //OrderItem Mappings
             CreateMap<OrderItem, OrderItemDto>().ReverseMap();
+            CreateMap<OrderItem, OrderItemWithProductNameDto>()
+            .ForMember(dest => dest.ProductName,
+                       opt => opt.MapFrom(src => src.Product.Name)).ReverseMap();
+            CreateMap<OrderItem,BuyNowOrderItemDto>().ReverseMap();
             CreateMap<OrderItem, CreateOrderItemDto>().ReverseMap();
             CreateMap<OrderItem, UpdateOrderItemDto>().ReverseMap();
+
+            //Order Mappings
+            CreateMap<Order, OrderDto>().ReverseMap();
+            CreateMap<Order, CreateOrderDto>().ReverseMap();
+            CreateMap<Order, UpdateOrderDto>().ReverseMap();
                 
+
 
 
         }

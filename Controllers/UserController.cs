@@ -104,12 +104,7 @@ namespace E_Commerce.Controllers
                 }
 
 
-                /*var isPasswordValid = await _userManager.CheckPasswordAsync(user, userLoginDto.Password);
-                if (!isPasswordValid)
-                {
-                    return new BadRequestObjectResult("Invalid username or password!");
-                }*/
-                return new OkObjectResult(
+                            return new OkObjectResult(
                     new NewUserDto
                     {
                         UserName = user.UserName,
