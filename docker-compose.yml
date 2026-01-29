@@ -1,0 +1,20 @@
+﻿services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ecommerce-db
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourPassword123!
+    ports:
+      - "1433:1433"
+
+  api:
+    build: .
+    container_name: ecommerce-api
+    ports:
+      - "5172:8080"  # Map host port 5172 to container port 8080
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ConnectionStrings__DefaultConnection=Server=db;Database=JAN_E-commerce;User=sa;Password=YourPassword123!;TrustServerCertificate=True;MultipleActiveResultSets=true
+    depends_on:
+      - db
