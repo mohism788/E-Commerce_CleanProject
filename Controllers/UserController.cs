@@ -108,7 +108,6 @@ namespace E_Commerce.Controllers
                     new NewUserDto
                     {
                         UserName = user.UserName,
-                        Email = user.Email,
                         Token = _tokenService.CreateToken(user)
                     });
             }

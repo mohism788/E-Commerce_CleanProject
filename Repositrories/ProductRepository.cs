@@ -16,21 +16,7 @@ namespace E_Commerce.Repositrories
             _dbContext = dbContext;
         }
 
-        public async Task<IEnumerable<Product>> GetAllProductInCategoryAsync(int categoryId)
-        {
-                var category = await _dbContext.Categories.AsNoTracking().FirstOrDefaultAsync(c=>c.Id == categoryId);
-            if (category == null)
-            {
-                throw new KeyNotFoundException($"Category with id {categoryId} not found");
-            }
-            var products = await _dbContext.Products
-                .AsNoTracking()
-                .Where(p=>p.CategoryId== categoryId)
-                .ToListAsync();
-
-            return products;
-
-        }
+       
 
         public async Task<PagedResult<Product>> GetProductsAsync(ProductQueryParameters queryParameters)
         {

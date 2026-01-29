@@ -1,6 +1,6 @@
 ﻿namespace E_Commerce.Models
 {
-    public class Order
+    public class Order : BaseEntity
     {
         public int Id { get; set; }
         public Guid UserId { get; set; }

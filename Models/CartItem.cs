@@ -1,6 +1,6 @@
 ﻿namespace E_Commerce.Models
 {
-    public class CartItem
+    public class CartItem : BaseEntity
     {
         public int Id { get; set; }
         public int ProductId { get; set; }

@@ -31,27 +31,35 @@ namespace E_Commerce.Repositrories
 
             public virtual async Task<T> AddAsync(T entity)
             {
-                await _dbSet.AddAsync(entity);
-                await _context.SaveChangesAsync();
-                return entity;
+               
+                    await _dbSet.AddAsync(entity);
+                    return entity;
+            
             }
 
             public virtual async Task UpdateAsync(T entity)
             {
-                _dbSet.Update(entity);
-                await _context.SaveChangesAsync();
+                
+                    _dbSet.Update(entity);
+                
             }
 
             public virtual async Task DeleteAsync(int id)
             {
-                var entity = await GetByIdAsync(id);
-                if (entity != null)
+                try
                 {
-                    _dbSet.Remove(entity);
-                    await _context.SaveChangesAsync();
+                    var entity = await GetByIdAsync(id);
+                    if (entity != null)
+                    {
+                        _dbSet.Remove(entity);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                catch
+                {
+                    throw new Exception($"Failed to delete entity with id {id}");
                 }
             }
-
             public virtual async Task<bool> ExistsAsync(int id)
             {
                 var entity = await GetByIdAsync(id);

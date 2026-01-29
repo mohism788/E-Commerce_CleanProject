@@ -1,8 +1,12 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using E_Commerce.Data;
 using E_Commerce.Models;
 using E_Commerce.Repositrories;
 using E_Commerce.Repositrories.E_Commerce.Repositories;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
+using E_Commerce.Services.Interfaces;
 using E_Commerce.TokenService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -74,7 +78,9 @@ options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenVali
     ValidAudience = builder.Configuration["JWT:Audience"],
     IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
         System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JWT:SigningKey"])
-        )
+        ),
+    NameClaimType = JwtRegisteredClaimNames.Sub
+
 };
 }
 
@@ -90,6 +96,10 @@ builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 builder.Services.AddScoped<ICartItemRepository, CartItemRepository>();
 builder.Services.AddScoped<IOrderItemRepository, OrderItemRepository>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+//builder.Services.AddScoped<IProductService, ProductService>();
 
 var app = builder.Build();
 

@@ -6,12 +6,17 @@ namespace E_Commerce.Repositrories.Interfaces
     public interface IOrderRepository : IGenericRepository<Order>
     {
 
-        Task<Order> CheckoutAsync(Guid userId);
+        //Task<Order> CheckoutAsync(Guid userId);
         Task<IEnumerable<Order>> GetUserOrdersAsync(Guid userId);
 
         //buy now
         Task<Order> BuyNowAsync(Guid userId, BuyNowOrderItemDto buyNowOrderItemDto);
 
+
+        Task<Order> CreateOrderFromCartAsync(Guid userId, IEnumerable<CartItem> cartItems);
+        Task<List<CartItem>> GetCartItemsWithProductsAsync(Guid userId);
+        Task RemoveCartItemsAsync(IEnumerable<CartItem> cartItems);
+        Task UpdateProductStockAsync(int productId, int quantityChange);
 
 
 

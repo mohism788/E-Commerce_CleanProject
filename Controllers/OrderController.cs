@@ -1,8 +1,10 @@
-﻿using AutoMapper;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using AutoMapper;
 using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.Repositrories.Interfaces;
-using Microsoft.AspNetCore.Http;
+using E_Commerce.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_Commerce.Controllers
@@ -13,124 +15,243 @@ namespace E_Commerce.Controllers
     {
         private readonly IMapper _mapper;
         private readonly IOrderRepository _orderRepo;
+        private readonly ILogger<OrderController> _logger;
+        private readonly IOrderService _orderService;
 
-        public OrderController(IMapper mapper, IOrderRepository orderRepo)
+        public OrderController(
+            IMapper mapper,
+            IOrderRepository orderRepo,
+            ILogger<OrderController> logger,
+            IOrderService orderService)
         {
-            _orderRepo = orderRepo;
             _mapper = mapper;
+            _orderRepo = orderRepo;
+            _logger = logger;
+            _orderService = orderService;
         }
 
-        //get all orders
-
+        // GET: api/orders
         [HttpGet]
-        public async Task<IActionResult> GetAllOrders()
+        [ProducesResponseType(typeof(ApiResponse<List<OrderDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetAllOrders()
         {
             try
             {
                 var orders = await _orderRepo.GetAllAsync();
-                return Ok(orders);
-            }
-            catch (Exception ex)
-            {
-                return new ObjectResult($"An error occurred while retrieving orders: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
-            }
-        }
-
-        //checkout order
-        [HttpPost("checkout")]
-        public async Task<IActionResult> CheckoutOrder(Guid userId)
-        {
-            try
-            {
-                var order = await _orderRepo.CheckoutAsync(userId);
-                return Ok("Order created successfully!");
-            }
-            catch (Exception ex)
-            {
-                return new ObjectResult($"An error occurred while checking out the order: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
-            }
-        }
-
-        //get orders by user id
-        [HttpGet("user/{userId}/orders")]
-        public async Task<IActionResult> GetOrdersByUserId(Guid userId)
-        {
-            try
-            {
-                var orders = await _orderRepo.GetUserOrdersAsync(userId);
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
 
-
-
-                return Ok(orderDtos);
+                return Ok(new ApiResponse<List<OrderDto>>
+                {
+                    Success = true,
+                    Data = orderDtos,
+                    Message = "Orders retrieved successfully",
+                    Count = orderDtos.Count
+                });
             }
             catch (Exception ex)
             {
-                return new ObjectResult($"An error occurred while retrieving orders: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
+                _logger.LogError(ex, "Error retrieving all orders");
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred while retrieving orders",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
             }
         }
 
-        //get order by id
-        [HttpGet("{orderId}")]
-        public async Task<IActionResult> GetOrderById(int orderId)
+        // GET: api/orders/{orderId}
+        [HttpGet("{orderId:int}")]
+        [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<OrderDto>>> GetOrderById(int orderId)
         {
             try
             {
                 var order = await _orderRepo.GetByIdAsync(orderId);
                 if (order == null)
                 {
-                    return NotFound($"Order with id {orderId} not found");
+                    return NotFound(new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = $"Order with id {orderId} not found",
+                        StatusCode = StatusCodes.Status404NotFound
+                    });
                 }
+
                 var orderDto = _mapper.Map<OrderDto>(order);
-               
-                return Ok(orderDto);
+
+                return Ok(new ApiResponse<OrderDto>
+                {
+                    Success = true,
+                    Data = orderDto,
+                    Message = "Order retrieved successfully"
+                });
             }
             catch (Exception ex)
             {
-                return new ObjectResult($"An error occurred while retrieving the order: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
+                _logger.LogError(ex, "Error retrieving order with ID {OrderId}", orderId);
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred while retrieving the order",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
             }
         }
 
-        
+        // GET: api/orders/user/{userId}/orders
+        [HttpGet("user/{userId}/orders")]
+        [ProducesResponseType(typeof(ApiResponse<List<OrderDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetOrdersByUserId(Guid userId)
+        {
+            try
+            {
+                var orders = await _orderRepo.GetUserOrdersAsync(userId);
+                var orderDtos = _mapper.Map<List<OrderDto>>(orders);
+
+                return Ok(new ApiResponse<List<OrderDto>>
+                {
+                    Success = true,
+                    Data = orderDtos,
+                    Message = "User orders retrieved successfully",
+                    Count = orderDtos.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving orders for user {UserId}", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred while retrieving user orders",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
+            }
+        }
+
+        // POST: api/orders/buy-now
         [HttpPost("buy-now")]
-        public async Task<IActionResult> BuyNow([FromBody] BuyNowOrderItemDto buyNowDto, Guid userId)
+        [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<OrderDto>>> BuyNow([FromBody] BuyNowOrderItemDto buyNowDto)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return BadRequest(new
+                    return BadRequest(new ApiErrorResponse
                     {
                         Success = false,
-                        Message = "Validation failed",
+                        Message = "Invalid request data",
                         Errors = ModelState.Values
                             .SelectMany(v => v.Errors)
                             .Select(e => e.ErrorMessage)
-                            .ToList()
+                            .ToList(),
+                        StatusCode = StatusCodes.Status400BadRequest
                     });
                 }
-                var order = await _orderRepo.BuyNowAsync(userId, buyNowDto);
-                return Ok("Order created successfully!");
+
+                // Get userId from authentication token (not from parameter)
+                var userId = GetUserIdFromToken();
+
+                var order = await _orderService.BuyNowAsync(userId, buyNowDto);
+                var orderDto = _mapper.Map<OrderDto>(order);
+
+                return CreatedAtAction(nameof(GetOrderById),
+                    new { orderId = order.Id },
+                    new ApiResponse<OrderDto>
+                    {
+                        Success = true,
+                        Data = orderDto,
+                        Message = "Order created successfully via Buy Now"
+                    });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status404NotFound
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status400BadRequest
+                });
             }
             catch (Exception ex)
             {
-                return new ObjectResult($"An error occurred while processing the buy now order: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
+                _logger.LogError(ex, "Error processing Buy Now order");
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred while processing the order",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
             }
         }
+
+        // NOTE: Checkout endpoint removed because checkout logic moved to service layer
+        // You should create a CheckoutController or use OrderService directly
+
+        // ========== Response Models ==========
+
+        public class ApiResponse<T>
+        {
+            public bool Success { get; set; }
+            public string Message { get; set; } = string.Empty;
+            public T? Data { get; set; }
+            public int? Count { get; set; }
+            public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        }
+
+        public class ApiErrorResponse
+        {
+            public bool Success { get; set; } = false;
+            public string Message { get; set; } = string.Empty;
+            public List<string>? Errors { get; set; }
+            public int StatusCode { get; set; }
+            public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        }
+
+        // ========== Helper Methods ==========
+
+        private Guid GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (userIdClaim is null)
+            {
+                throw new UnauthorizedAccessException("User ID claim is missing.");
+            }
+
+            if (!Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                throw new UnauthorizedAccessException("User ID claim is invalid.");
+            }
+
+            return userId;
+        }
+
+        private string GetUserEmail()
+        {
+            return User.FindFirst(ClaimTypes.Email)?.Value
+                ?? throw new UnauthorizedAccessException("Email claim missing");
+        }
+
     }
 }

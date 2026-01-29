@@ -21,7 +21,6 @@ namespace E_Commerce.Controllers
         }
 
 
-        // GET: api/products (with filtering, sorting, pagination)
         [HttpGet]
         public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParameters queryParameters)
         {

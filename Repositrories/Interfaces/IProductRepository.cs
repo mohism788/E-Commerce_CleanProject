@@ -15,8 +15,7 @@ namespace E_Commerce.Repositrories.Interfaces
         Task<IEnumerable<Product>> GetProductsBySellerIdAsync(Guid sellerId);
 
 
-        //get all products in a category id 
-        Task<IEnumerable<Product>> GetAllProductInCategoryAsync(int categoryId);
+       
 
 
 

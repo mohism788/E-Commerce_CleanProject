@@ -1,6 +1,6 @@
 ﻿namespace E_Commerce.Models
 {
-    public class Review
+    public class Review : BaseEntity
     {
         public int Id { get; set; }
         public int ProductId { get; set; }
