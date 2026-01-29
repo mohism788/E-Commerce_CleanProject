@@ -1,4 +1,5 @@
 ﻿using E_Commerce.Data;
+using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.E_Commerce.Repositories;
 using E_Commerce.Repositrories.Interfaces;
@@ -31,6 +32,36 @@ namespace E_Commerce.Repositrories
 
         }
 
+        public async Task<PagedResult<Product>> GetProductsAsync(ProductQueryParameters queryParameters)
+        {
+            var query = _dbContext.Products
+            .Include(p => p.Categories)  // Include categories if needed
+            .AsQueryable();
+
+            // Apply filters
+            query = ApplyFilters(query, queryParameters);
+
+            // Apply sorting
+            query = ApplySorting(query, queryParameters);
+
+            // Get total count before pagination
+            var totalCount = await query.CountAsync();
+
+            // Apply pagination
+            var items = await query
+                .Skip((queryParameters.Page - 1) * queryParameters.PageSize)
+                .Take(queryParameters.PageSize)
+                .ToListAsync();
+
+            return new PagedResult<Product>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = queryParameters.Page,
+                PageSize = queryParameters.PageSize
+            };
+        }
+
         public async Task<IEnumerable<Product>> GetProductsBySellerIdAsync(Guid sellerId)
         {
 
@@ -60,6 +91,75 @@ namespace E_Commerce.Repositrories
             return product.SellerId;
         }
 
- 
+
+
+
+        private IQueryable<Product> ApplyFilters(IQueryable<Product> query, ProductQueryParameters parameters)
+        {
+            // Filter by name (partial match)
+            if (!string.IsNullOrWhiteSpace(parameters.Name))
+            {
+                query = query.Where(p => p.Name.Contains(parameters.Name));
+            }
+
+            // Filter by category
+            if (parameters.CategoryId.HasValue)
+            {
+                query = query.Where(p => p.CategoryId == parameters.CategoryId.Value);
+            }
+
+            // Filter by price range
+            if (parameters.MinPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= parameters.MinPrice.Value);
+            }
+
+            if (parameters.MaxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= parameters.MaxPrice.Value);
+            }
+
+            // Filter by seller
+            if (parameters.SellerId.HasValue)
+            {
+                query = query.Where(p => p.SellerId == parameters.SellerId.Value);
+            }
+
+            // Filter by stock availability
+            if (parameters.InStockOnly)
+            {
+                query = query.Where(p => p.Stock > 0);
+            }
+
+            // Search term (search in name and description)
+            if (!string.IsNullOrWhiteSpace(parameters.SearchTerm))
+            {
+                var searchTerm = parameters.SearchTerm.ToLower();
+                query = query.Where(p =>
+                    p.Name.ToLower().Contains(searchTerm) ||
+                    p.Description.ToLower().Contains(searchTerm));
+            }
+
+            return query;
+        }
+
+        private IQueryable<Product> ApplySorting(IQueryable<Product> query, ProductQueryParameters parameters)
+        {
+            var sortBy = parameters.SortBy?.ToLower() ?? "name";
+            var isDescending = parameters.SortDescending;
+
+            return sortBy switch
+            {
+                "price" => isDescending
+                    ? query.OrderByDescending(p => p.Price)
+                    : query.OrderBy(p => p.Price),
+                "createdat" or "date" => isDescending
+                    ? query.OrderByDescending(p => p.CreatedAt)
+                    : query.OrderBy(p => p.CreatedAt),
+                "name" or _ => isDescending
+                    ? query.OrderByDescending(p => p.Name)
+                    : query.OrderBy(p => p.Name)
+            };
+        }
     }
 }
