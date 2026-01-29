@@ -1,124 +1,59 @@
-﻿
+﻿using AutoMapper;
 using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_Commerce.Controllers
 {
-    [Route("api/product")]
+    [Route("api/[controller]")]
     [ApiController]
-    public class ProductController
+    public class ProductController : ControllerBase
     {
         private readonly IProductRepository _productRepo;
+        private readonly IMapper _mapper;
 
-        public ProductController(IProductRepository productRepo)
+        public ProductController(IProductRepository productRepo, IMapper mapper)
         {
             _productRepo = productRepo;
+            _mapper = mapper;
         }
 
-        
+
+        // GET: api/products (with filtering, sorting, pagination)
         [HttpGet]
-        public async Task<IActionResult> GetProducts()
+        public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParameters queryParameters)
         {
             try
             {
-                var products = await _productRepo.GetAllAsync();
+                var pagedResult = await _productRepo.GetProductsAsync(queryParameters);
 
-                return new OkObjectResult(products);
-
+                return Ok(new
+                {
+                    Success = true,
+                    Data = pagedResult.Items,
+                    Pagination = new
+                    {
+                        pagedResult.Page,
+                        pagedResult.PageSize,
+                        pagedResult.TotalCount,
+                        pagedResult.TotalPages,
+                        pagedResult.HasPreviousPage,
+                        pagedResult.HasNextPage
+                    }
+                });
             }
             catch (Exception ex)
             {
-                return new ObjectResult($"An error occurred while retrieving products: {ex.Message}")
+                return StatusCode(500, new
                 {
-                    StatusCode = 500
-                };
+                    Success = false,
+                    Message = $"An error occurred: {ex.Message}"
+                });
             }
         }
 
-
-        //get product by id
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetProductById(int id)
-        {
-            try
-            {
-                
-                var product = await _productRepo.GetByIdAsync(id);
-                if (product == null)
-                {
-                    return new NotFoundObjectResult($"Product with id {id} not found");
-                }
-                ProductDto productDto = new ProductDto
-                {
-                    Id = product.Id,
-                    Name = product.Name,
-                    Description = product.Description,
-                    Price = product.Price,
-                    Stock = product.Stock,
-                    SellerId = product.SellerId,
-                    CategoryId = product.CategoryId
-                };
-                return new OkObjectResult(productDto);
-            }
-            catch (KeyNotFoundException knfEx)
-            {
-                return new NotFoundObjectResult(knfEx.Message);
-            }
-            catch (Exception ex)
-            {
-                return new ObjectResult($"An error occurred while retrieving the product: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
-            }
-        }
-
-
-        //get all products by seller id
-        [HttpGet("seller/{sellerId}")]
-        public async Task<IActionResult> GetProductsBySellerId(Guid sellerId)
-        {
-            try
-            {
-                var products = await _productRepo.GetProductsBySellerIdAsync(sellerId);
-                return new OkObjectResult(products);
-            }
-            catch (KeyNotFoundException  knfEx)
-            {
-                return new NotFoundObjectResult(knfEx.Message);
-            }
-            catch (Exception ex)
-            {
-                return new ObjectResult($"An error occurred while retrieving products: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
-            }
-        }
-
-        //get all products in category
-        [HttpGet("category/{categoryId}")]
-        public async Task<IActionResult> GetProductsInCategory(int categoryId)
-        {
-            try
-            {
-                var products = await _productRepo.GetAllProductInCategoryAsync(categoryId);
-                return new OkObjectResult(products);
-            }
-            catch (KeyNotFoundException knfEx)
-            {
-                return new NotFoundObjectResult(knfEx.Message);
-            }
-            catch (Exception ex)
-            {
-                return new ObjectResult($"An error occurred while retrieving products: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
-            }
-        }
 
         //add product
         [HttpPost]
@@ -136,11 +71,7 @@ namespace E_Commerce.Controllers
                     CategoryId = createProductDto.CategoryId
                 };
                 await _productRepo.AddAsync(product);
-                return new OkObjectResult("Product added successfully");
-            }
-            catch (ArgumentNullException anEx)
-            {
-                return new BadRequestObjectResult(anEx.Message);
+                return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
             }
             catch (Exception ex)
             {
@@ -150,38 +81,21 @@ namespace E_Commerce.Controllers
                 };
             }
 
-
-
         }
 
-        [HttpPut]
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto updateProductDto)
         {
             try
             {
-               
-
-                var product = await _productRepo.GetByIdAsync(id);
-
-                if (product == null)
+                var existingProduct = await _productRepo.GetByIdAsync(id);
+                if (existingProduct == null)
                 {
-                    return new NotFoundObjectResult($"Product with id {id} not found");
+                    return NotFound($"Product with id {id} not found");
                 }
-
-                product.Stock = updateProductDto.Stock;
-                product.Price = updateProductDto.Price;
-                product.Description = updateProductDto.Description;
-                product.Name = updateProductDto.Name;
-                product.CategoryId = updateProductDto.CategoryId;
-
-
-
-                await _productRepo.UpdateAsync(product);
-                return new OkObjectResult("Product updated successfully");
-            }
-            catch (KeyNotFoundException knfEx)
-            {
-                return new NotFoundObjectResult(knfEx.Message);
+                _mapper.Map(updateProductDto, existingProduct);
+                await _productRepo.UpdateAsync(existingProduct);
+                return Ok(new { message = "Product updated successfully" });
             }
             catch (Exception ex)
             {
@@ -192,24 +106,18 @@ namespace E_Commerce.Controllers
             }
         }
 
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             try
             {
-                if (!await _productRepo.ExistsAsync(id))
+                 
+                if (await _productRepo.GetByIdAsync(id) == null)
                 {
-                    return new NotFoundObjectResult($"Product with id {id} not found");
+                    return NotFound($"Product with id {id} not found");
                 }
-
                 await _productRepo.DeleteAsync(id);
-
-                return new OkObjectResult("Product deleted successfully");
-            }
-            catch (KeyNotFoundException knfEx)
-            {
-                return new NotFoundObjectResult(knfEx.Message);
+                return Ok(new { message = "Product deleted successfully" });
             }
             catch (Exception ex)
             {
@@ -221,3 +129,4 @@ namespace E_Commerce.Controllers
         }
     }
 }
+
