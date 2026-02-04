@@ -3,6 +3,7 @@ using AutoMapper;
 using E_Commerce.DTOs.CategoryDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -66,7 +67,9 @@ namespace E_Commerce.Controllers
         }
 
         //Add new category
+
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AddCategory([FromBody] CreateCategoryDto createCategoryDto)
         {
             try
@@ -92,6 +95,7 @@ namespace E_Commerce.Controllers
 
         //Delete
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteCategory(int id) 
         {
             try
@@ -115,6 +119,7 @@ namespace E_Commerce.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateCategory(int id, [FromBody] UpdateCategoryDto updateCategoryDto)
         {
             try

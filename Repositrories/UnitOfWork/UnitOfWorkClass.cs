@@ -11,7 +11,7 @@ using E_Commerce.Models;
 
 namespace E_Commerce.Data
 {
-    public class UnitOfWork : IUnitOfWork
+    public class UnitOfWorkClass : IUnitOfWork
     {
         private readonly ApplicationDbContext _context;
         private IDbContextTransaction _currentTransaction;
@@ -20,7 +20,7 @@ namespace E_Commerce.Data
         // Cache for repositories
         private Dictionary<Type, object> _repositories;
 
-        public UnitOfWork(ApplicationDbContext context)
+        public UnitOfWorkClass(ApplicationDbContext context)
         {
             _context = context;
             _repositories = new Dictionary<Type, object>();
@@ -152,6 +152,9 @@ namespace E_Commerce.Data
             _currentTransaction?.Dispose();
             _currentTransaction = null;
         }
+
+        public ApplicationDbContext GetDbContext() => _context; // Added for repository access
+
 
         // ========== IDisposable Implementation ==========
         public void Dispose()

@@ -5,6 +5,7 @@ using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.Repositrories.Interfaces;
 using E_Commerce.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_Commerce.Controllers
@@ -34,6 +35,7 @@ namespace E_Commerce.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<OrderDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        [Authorize]
         public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetAllOrders()
         {
             try
@@ -67,10 +69,12 @@ namespace E_Commerce.Controllers
         [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Customer,Admin")]
         public async Task<ActionResult<ApiResponse<OrderDto>>> GetOrderById(int orderId)
         {
             try
             {
+                var currentUserId = GetUserIdFromToken();
                 var order = await _orderRepo.GetByIdAsync(orderId);
                 if (order == null)
                 {
@@ -81,6 +85,11 @@ namespace E_Commerce.Controllers
                         StatusCode = StatusCodes.Status404NotFound
                     });
                 }
+                
+                if (order.UserId != currentUserId && !User.IsInRole("Admin"))
+                {
+                    return Forbid(); 
+                }
 
                 var orderDto = _mapper.Map<OrderDto>(order);
 
@@ -89,6 +98,15 @@ namespace E_Commerce.Controllers
                     Success = true,
                     Data = orderDto,
                     Message = "Order retrieved successfully"
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status401Unauthorized
                 });
             }
             catch (Exception ex)
@@ -108,12 +126,21 @@ namespace E_Commerce.Controllers
         [HttpGet("user/{userId}/orders")]
         [ProducesResponseType(typeof(ApiResponse<List<OrderDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Customer,Admin")]
         public async Task<ActionResult<ApiResponse<List<OrderDto>>>> GetOrdersByUserId(Guid userId)
         {
             try
             {
+                var currentUserId = GetUserIdFromToken();
                 var orders = await _orderRepo.GetUserOrdersAsync(userId);
+
+                // Ensure user can only access their own orders unless they are an Admin
+                if (userId != currentUserId && !User.IsInRole("Admin"))
+                {
+                    return Forbid(); // or BadRequest("Cannot access another user's orders");
+                }
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
+
 
                 return Ok(new ApiResponse<List<OrderDto>>
                 {
@@ -121,6 +148,15 @@ namespace E_Commerce.Controllers
                     Data = orderDtos,
                     Message = "User orders retrieved successfully",
                     Count = orderDtos.Count
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status401Unauthorized
                 });
             }
             catch (Exception ex)
@@ -141,6 +177,7 @@ namespace E_Commerce.Controllers
         [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Customer")]
         public async Task<ActionResult<ApiResponse<OrderDto>>> BuyNow([FromBody] BuyNowOrderItemDto buyNowDto)
         {
             try
@@ -164,6 +201,7 @@ namespace E_Commerce.Controllers
 
                 var order = await _orderService.BuyNowAsync(userId, buyNowDto);
                 var orderDto = _mapper.Map<OrderDto>(order);
+
 
                 return CreatedAtAction(nameof(GetOrderById),
                     new { orderId = order.Id },
@@ -247,11 +285,7 @@ namespace E_Commerce.Controllers
             return userId;
         }
 
-        private string GetUserEmail()
-        {
-            return User.FindFirst(ClaimTypes.Email)?.Value
-                ?? throw new UnauthorizedAccessException("Email claim missing");
-        }
+       
 
     }
 }

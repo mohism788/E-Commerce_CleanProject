@@ -2,6 +2,7 @@
 using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -56,10 +57,12 @@ namespace E_Commerce.Controllers
 
         //add product
         [HttpPost]
+        [Authorize(Roles = "Seller")]
         public async Task<IActionResult> AddProduct([FromBody] CreateProductDto createProductDto)
         {
             try
             {
+                
                 Product product = new Product
                 {
                     Name = createProductDto.Name,
@@ -83,18 +86,30 @@ namespace E_Commerce.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Seller")]
         public async Task<IActionResult> UpdateProduct(int id, UpdateProductDto updateProductDto)
         {
             try
             {
+                var currentUserId = GetCurrentUserId();
+
                 var existingProduct = await _productRepo.GetByIdAsync(id);
+                
                 if (existingProduct == null)
                 {
                     return NotFound($"Product with id {id} not found");
                 }
+                if (existingProduct.SellerId != currentUserId)
+                {
+                    return Forbid(); // or return Unauthorized();
+                }
                 _mapper.Map(updateProductDto, existingProduct);
                 await _productRepo.UpdateAsync(existingProduct);
                 return Ok(new { message = "Product updated successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { success = false, message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -106,17 +121,30 @@ namespace E_Commerce.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Seller")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             try
             {
-                 
-                if (await _productRepo.GetByIdAsync(id) == null)
+                var currentUserId = GetCurrentUserId();
+                var product = await _productRepo.GetByIdAsync(id);
+
+
+                if (product == null)
                 {
                     return NotFound($"Product with id {id} not found");
                 }
+                if (product.SellerId != currentUserId)
+                {
+                    return Forbid(); // or return Unauthorized();
+                }
+
                 await _productRepo.DeleteAsync(id);
                 return Ok(new { message = "Product deleted successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { success = false, message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -125,6 +153,17 @@ namespace E_Commerce.Controllers
                     StatusCode = 500
                 };
             }
+        }
+
+        //get user by token
+        private Guid GetCurrentUserId()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
+            if (userIdClaim == null)
+            {
+                throw new UnauthorizedAccessException("User ID claim not found");
+            }
+            return Guid.Parse(userIdClaim.Value);
         }
     }
 }

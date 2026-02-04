@@ -1,5 +1,7 @@
 ﻿using System.Data;
+using E_Commerce.Data;
 using E_Commerce.Repositrories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace E_Commerce.Repositrories.UnitOfWork
 {
@@ -22,6 +24,7 @@ namespace E_Commerce.Repositrories.UnitOfWork
         Task BeginTransactionAsync(IsolationLevel isolationLevel = IsolationLevel.ReadCommitted);
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();
+        public ApplicationDbContext GetDbContext();
 
         // Check if transaction is active
         bool HasActiveTransaction { get; }

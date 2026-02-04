@@ -3,6 +3,7 @@ using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.E_Commerce.Repositories;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 
 namespace E_Commerce.Repositrories
@@ -10,13 +11,12 @@ namespace E_Commerce.Repositrories
     public class OrderItemRepository : GenericRepository<OrderItem>, IOrderItemRepository
     {
         private readonly ApplicationDbContext _dbContext;
+        
+
         public OrderItemRepository(ApplicationDbContext dbContext) : base(dbContext)
         {
             _dbContext = dbContext;
         }
-
-
-        
 
         public async Task<OrderItem> AddOrderItemAsync(CreateOrderItemDto dto, Guid? userId = null)
         {
@@ -60,7 +60,7 @@ namespace E_Commerce.Repositrories
                 };
 
                 await _dbContext.Orders.AddAsync(order);
-                await _dbContext.SaveChangesAsync(); // Save to get OrderId
+                //await _unitOfWork.SaveChangesAsync(); // Save to get OrderId
             }
 
             // Get product details
@@ -94,7 +94,7 @@ namespace E_Commerce.Repositrories
                 order.TotalAmount = order.OrderItems.Sum(oi => oi.UnitPrice * oi.Quantity);
                 order.OrderDate = DateTime.UtcNow;
 
-                await _dbContext.SaveChangesAsync();
+                //await _unitOfWork.SaveChangesAsync();
                 return existingOrderItem;
             }
             else
@@ -114,7 +114,7 @@ namespace E_Commerce.Repositrories
                 order.TotalAmount = order.TotalAmount  + (product.Price * dto.Quantity);
                 order.OrderDate = DateTime.UtcNow;
 
-                await _dbContext.SaveChangesAsync();
+                //await _unitOfWork.SaveChangesAsync();
                 return newOrderItem;
             }
         }
@@ -133,7 +133,7 @@ namespace E_Commerce.Repositrories
                 else
                 {
                     _dbContext.OrderItems.Remove(orderItem);
-                    await _dbContext.SaveChangesAsync();
+                    //await _dbContext.SaveChangesAsync();
                 }
             }
         }
