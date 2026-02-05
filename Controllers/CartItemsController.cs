@@ -3,6 +3,7 @@ using AutoMapper;
 using E_Commerce.DTOs.CartItemDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,12 +14,13 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class CartItemsController : ControllerBase
     {
-        private readonly ICartItemRepository _cartItemRepo;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
 
-        public CartItemsController(ICartItemRepository cartItemRepo, IMapper mapper)
+        public CartItemsController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _cartItemRepo = cartItemRepo;
+
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
 
@@ -31,7 +33,7 @@ namespace E_Commerce.Controllers
             try
             {
                
-                var cartItems = await _cartItemRepo.GetAllAsync();
+                var cartItems = await _unitOfWork.CartItems.GetAllAsync();
 
                 return Ok(cartItems);
             }
@@ -59,7 +61,7 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or BadRequest("Cannot add items to another user's cart");
                 }
 
-                var cartItems = await _cartItemRepo.GetCartItemsByUserIdAsync(userId);
+                var cartItems = await _unitOfWork.CartItems.GetCartItemsByUserIdAsync(userId);
                 return Ok(cartItems);
             }
             catch (UnauthorizedAccessException ex)
@@ -91,7 +93,8 @@ namespace E_Commerce.Controllers
                 }
 
                 var cartItem = _mapper.Map<CartItem>(createCartItemDto);
-                await _cartItemRepo.AddAsync(cartItem);
+                await _unitOfWork.CartItems.AddAsync(cartItem);
+                await _unitOfWork.SaveChangesAsync();
                 return StatusCode(201, new
                 {
                             success = true, 
@@ -119,7 +122,7 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                var cartItem = await _cartItemRepo.GetByIdAsync(id);
+                var cartItem = await _unitOfWork.CartItems.GetByIdAsync(id);
                 
                 // Ensure user can only delete items from their own cart
                 if (cartItem.UserId != currentUserId)
@@ -133,7 +136,8 @@ namespace E_Commerce.Controllers
                 }
                 
 
-                await _cartItemRepo.DeleteAsync(id);
+                await _unitOfWork.CartItems.DeleteAsync(id);
+                await _unitOfWork.SaveChangesAsync();
                 return Ok(new { success = true, message = "Cart item deleted successfully" });
             }
             catch (UnauthorizedAccessException ex)
@@ -164,7 +168,8 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
 
-                await _cartItemRepo.DeleteWholeCartByUserIdAsync(userId);
+                await _unitOfWork.CartItems.DeleteWholeCartByUserIdAsync(userId);
+                await _unitOfWork.SaveChangesAsync();
                 return Ok(new { success = true, message = "Whole cart deleted successfully" });
             }
             catch (UnauthorizedAccessException ex)

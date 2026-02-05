@@ -4,6 +4,7 @@ using AutoMapper;
 using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using E_Commerce.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,18 +16,18 @@ namespace E_Commerce.Controllers
     public class OrderController : ControllerBase
     {
         private readonly IMapper _mapper;
-        private readonly IOrderRepository _orderRepo;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<OrderController> _logger;
         private readonly IOrderService _orderService;
 
         public OrderController(
             IMapper mapper,
-            IOrderRepository orderRepo,
+            IUnitOfWork unitOfWork,
             ILogger<OrderController> logger,
             IOrderService orderService)
         {
             _mapper = mapper;
-            _orderRepo = orderRepo;
+            _unitOfWork = unitOfWork;
             _logger = logger;
             _orderService = orderService;
         }
@@ -40,7 +41,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var orders = await _orderRepo.GetAllAsync();
+                var orders = await _unitOfWork.Orders.GetAllAsync();
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
 
                 return Ok(new ApiResponse<List<OrderDto>>
@@ -75,7 +76,7 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetUserIdFromToken();
-                var order = await _orderRepo.GetByIdAsync(orderId);
+                var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
                 if (order == null)
                 {
                     return NotFound(new ApiErrorResponse
@@ -132,7 +133,7 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetUserIdFromToken();
-                var orders = await _orderRepo.GetUserOrdersAsync(userId);
+                var orders = await _unitOfWork.Orders.GetUserOrdersAsync(userId);
 
                 // Ensure user can only access their own orders unless they are an Admin
                 if (userId != currentUserId && !User.IsInRole("Admin"))
@@ -244,8 +245,158 @@ namespace E_Commerce.Controllers
             }
         }
 
-        // NOTE: Checkout endpoint removed because checkout logic moved to service layer
-        // You should create a CheckoutController or use OrderService directly
+
+
+
+        //delete order by id
+        [HttpDelete("{orderId:int}")]
+        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<string>>> DeleteOrder(int orderId)
+        {
+            try
+            {
+                var currentUserId = GetUserIdFromToken();
+                var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
+                if (order == null)
+                {
+                    return NotFound(new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = $"Order with id {orderId} not found",
+                        StatusCode = StatusCodes.Status404NotFound
+                    });
+                }
+
+                if (order.UserId != currentUserId && !User.IsInRole("Admin"))
+                {
+                    return Forbid();
+                }
+                await _unitOfWork.Orders.DeleteAsync(order.Id);
+                await _unitOfWork.SaveChangesAsync();
+                return Ok(new ApiResponse<string>
+                {
+                    Success = true,
+                    Data = null,
+                    Message = "Order deleted successfully"
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status401Unauthorized
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting order with ID {OrderId}", orderId);
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred while deleting the order",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
+            }
+        }
+
+        // POST: api/orders/checkout
+        [HttpPost("checkout")]
+        [ProducesResponseType(typeof(ApiResponse<OrderDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+        [Authorize(Roles = "Customer")]
+        public async Task<ActionResult<ApiResponse<OrderDto>>> Checkout()
+        {
+            try
+            {
+                // Get userId from authentication token
+                var userId = GetUserIdFromToken();
+
+                // Log the checkout attempt
+                _logger.LogInformation("Checkout initiated for user {UserId}", userId);
+
+                // Process checkout using the service
+                var order = await _orderService.CheckoutAsync(userId);
+
+                // Map to DTO
+                var orderDto = _mapper.Map<OrderDto>(order);
+
+                // Log successful checkout
+                _logger.LogInformation("Checkout completed successfully for user {UserId}, Order ID: {OrderId}",
+                    userId, order.Id);
+
+                return Ok(new ApiResponse<OrderDto>
+                {
+                    Success = true,
+                    Data = orderDto,
+                    Message = "Checkout completed successfully"
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Cart is empty"))
+            {
+                _logger.LogWarning("Checkout failed: Cart is empty for user {UserId}", GetUserIdFromToken());
+
+                return BadRequest(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = "Cannot checkout with an empty cart",
+                    StatusCode = StatusCodes.Status400BadRequest
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Insufficient stock"))
+            {
+                _logger.LogWarning("Checkout failed: {Message}", ex.Message);
+
+                return BadRequest(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status400BadRequest
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Checkout failed: Resource not found");
+
+                return NotFound(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status404NotFound
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Checkout failed: Authorization error");
+
+                return Unauthorized(new ApiErrorResponse
+                {
+                    Success = false,
+                    Message = ex.Message,
+                    StatusCode = StatusCodes.Status401Unauthorized
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during checkout for user {UserId}", GetUserIdFromToken());
+
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new ApiErrorResponse
+                    {
+                        Success = false,
+                        Message = "An error occurred during checkout. Please try again.",
+                        StatusCode = StatusCodes.Status500InternalServerError
+                    });
+            }
+        }
+
+
 
         // ========== Response Models ==========
 

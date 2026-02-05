@@ -122,22 +122,57 @@ namespace E_Commerce.Repositrories
 
         public override async Task DeleteAsync(int id)
         {
-            var orderItem = await _dbContext.OrderItems.FindAsync(id);
+            var orderItem = await _dbContext.OrderItems
+                                   .Include(oi => oi.Order)
+                                   .ThenInclude(o => o.OrderItems)
+                                   .FirstOrDefaultAsync(oi => oi.Id == id);
             if (orderItem != null)
             {
-                if (orderItem.Quantity > 1)
-                {
-                    orderItem.Quantity -= 1;
-                    await _dbContext.SaveChangesAsync();
-                }
-                else
-                {
+                var order = orderItem.Order;
+                
+                    bool isLastItem = false;
+                    if (order != null && order.OrderItems != null)
+                    {
+                        
+                        var itemsInOrder = order.OrderItems.Where(oi => oi.Id != id).ToList();
+                        isLastItem = itemsInOrder.Count == 0;
+                    }
                     _dbContext.OrderItems.Remove(orderItem);
-                    //await _dbContext.SaveChangesAsync();
-                }
+                    //return quantity to stock
+                    var product = await _dbContext.Products.FindAsync(orderItem.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += orderItem.Quantity;
+                    }
+                    if (isLastItem && order != null)
+                    {
+                        _dbContext.Orders.Remove(order);
+                    }
+                
             }
         }
 
-        
+
+
+        public override async Task<OrderItem?> GetByIdAsync(int id)
+        {
+            // Add logging here too
+            Console.WriteLine($"Repository: Getting OrderItem with id {id}");
+
+            var orderItem = await _dbContext.OrderItems
+                .Include(oi => oi.Order) // Make sure this line is there
+                .AsNoTracking() // Remove this if present - it can prevent loading
+                .FirstOrDefaultAsync(oi => oi.Id == id);
+
+            Console.WriteLine($"Repository: OrderItem found: {orderItem != null}");
+            if (orderItem != null)
+            {
+                Console.WriteLine($"Repository: OrderItem.Order: {orderItem.Order}");
+                Console.WriteLine($"Repository: OrderItem.OrderId: {orderItem.OrderId}");
+            }
+
+            return orderItem;
+        }
+
     }
 }

@@ -4,6 +4,7 @@ using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.DTOs.ReviewDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,22 +15,23 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class OrderItemController : ControllerBase
     {
-        private readonly IOrderItemRepository _orderItemRepo;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
-        public OrderItemController(IOrderItemRepository orderItemRepo, IMapper mapper)
+        public OrderItemController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _orderItemRepo = orderItemRepo;
+
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
 
         //get all order items
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         public async Task<IActionResult> GetOrderItems()
         {
             try
             {
-                var orderItems = await _orderItemRepo.GetAllAsync();
+                var orderItems = await _unitOfWork.OrderItems.GetAllAsync();
                var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
 
 
@@ -45,6 +47,7 @@ namespace E_Commerce.Controllers
         }
 
         //add order item
+
         [HttpPost]
         [Authorize(Roles = "Customer")]
         public async Task<IActionResult> CreateOrderItem([FromBody] CreateOrderItemDto createOrderItemDto, Guid userId)
@@ -52,28 +55,43 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
+
                 // Ensure user can only add items to their own order
                 if (userId != currentUserId)
                 {
-                    return Forbid(); // or BadRequest("Cannot add items to another user's order");
+                    return Forbid();
                 }
 
-                await _orderItemRepo.AddOrderItemAsync(createOrderItemDto);
+                // Use transaction for atomic operation
+                await _unitOfWork.BeginTransactionAsync();
 
-                var orderItem = _mapper.Map<OrderItem>(createOrderItemDto);
-                var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
-                return CreatedAtAction(nameof(GetOrderItems), new { id = orderItem.Id }, orderItemDto);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { success = false, message = ex.Message });
+                try
+                {
+                    // Perform all operations
+                    await _unitOfWork.OrderItems.AddOrderItemAsync(createOrderItemDto);
+
+                    // Save changes
+                    await _unitOfWork.SaveChangesAsync();
+
+                    // Commit transaction
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    // Map and return
+                    var orderItem = _mapper.Map<OrderItem>(createOrderItemDto);
+                    var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
+
+                    return CreatedAtAction(nameof(GetOrderItems), new { id = orderItem.Id }, orderItemDto);
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
-                return new ObjectResult($"An error occurred while creating the order item: {ex.Message}")
-                {
-                    StatusCode = 500
-                };
+                return StatusCode(500, $"An error occurred: {ex.Message}");
             }
         }
 
@@ -86,7 +104,11 @@ namespace E_Commerce.Controllers
             {
                 var currentUserId = GetCurrentUserId();
                 
-                var orderItem = await _orderItemRepo.GetByIdAsync(id);
+                await _unitOfWork.BeginTransactionAsync();
+
+                try { 
+
+                var orderItem = await _unitOfWork.OrderItems.GetByIdAsync(id);
 
                 if (orderItem == null)
                 {
@@ -99,8 +121,17 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
 
-                await _orderItemRepo.DeleteAsync(orderItem.Id);
-                return NoContent();
+                await _unitOfWork.OrderItems.DeleteAsync(orderItem.Id);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                    return NoContent();
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {

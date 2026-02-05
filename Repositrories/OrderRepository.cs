@@ -86,7 +86,7 @@ namespace E_Commerce.Repositrories
                 }).ToList()
             };
 
-            // Add order (doesn't save - UnitOfWork will handle SaveChanges)
+
             await AddAsync(order);
             return order;
         }
@@ -180,5 +180,32 @@ namespace E_Commerce.Repositrories
                 .Where(o => o.UserId == userId && o.Status == "Completed")
                 .SumAsync(o => o.TotalAmount);
         }
+
+
+        //override delete to handle cascade delete of order items
+        public override async Task DeleteAsync(int id)
+        {
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == id);
+            if (order != null)
+            {
+                // Remove related order items first
+                 _context.OrderItems.RemoveRange(order.OrderItems);
+                // Then remove the order
+                _context.Orders.Remove(order);
+                //return products to stock
+                foreach (var orderItem in order.OrderItems)
+                {
+                    var product = await _context.Products.FindAsync(orderItem.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += orderItem.Quantity;
+                    }
+                }
+            }
+        }
+
+        
     }
 }
