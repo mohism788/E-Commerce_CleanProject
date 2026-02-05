@@ -75,7 +75,7 @@ namespace E_Commerce.Controllers
                     {
                         UserName = user.UserName,
                         Email = user.Email,
-                        Token = _tokenService.CreateToken(user),
+                        Token = await _tokenService.CreateToken(user),
                         Role = role
 
                     });
@@ -108,7 +108,7 @@ namespace E_Commerce.Controllers
                     new NewUserDto
                     {
                         UserName = user.UserName,
-                        Token = _tokenService.CreateToken(user)
+                        Token = await _tokenService.CreateToken(user)
                     });
             }
             catch (Exception ex)

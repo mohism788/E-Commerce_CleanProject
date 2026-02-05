@@ -137,8 +137,9 @@ namespace E_Commerce.Controllers
                 // Ensure user can only access their own orders unless they are an Admin
                 if (userId != currentUserId && !User.IsInRole("Admin"))
                 {
-                    return Forbid(); // or BadRequest("Cannot access another user's orders");
+                    return Forbid();
                 }
+
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
 
 
@@ -161,7 +162,7 @@ namespace E_Commerce.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving orders for user {UserId}", userId);
+                _logger.LogError(ex, "Error retrieving orders for user {userId}", userId);
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new ApiErrorResponse
                     {
