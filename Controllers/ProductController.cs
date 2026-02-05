@@ -107,11 +107,11 @@ namespace E_Commerce.Controllers
 
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                await _unitOfWork.Products.AddAsync(product);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
+                       await _unitOfWork.Products.AddAsync(product);
+                       await _unitOfWork.SaveChangesAsync();
+                       await _unitOfWork.CommitTransactionAsync();
 
-                    return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
+                       return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
                 }
                 catch
                 {
@@ -140,22 +140,22 @@ namespace E_Commerce.Controllers
 
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
-                
-                if (existingProduct == null)
-                {
-                    return NotFound($"Product with id {id} not found");
-                }
-                if (existingProduct.SellerId != currentUserId)
-                {
-                    return Forbid(); // or return Unauthorized();
-                }
-                _mapper.Map(updateProductDto, existingProduct);
-                await _unitOfWork.Products.UpdateAsync(existingProduct);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
+                       var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
+                       
+                       if (existingProduct == null)
+                       {
+                           return NotFound($"Product with id {id} not found");
+                       }
+                       if (existingProduct.SellerId != currentUserId)
+                       {
+                           return Forbid(); // or return Unauthorized();
+                       }
+                       _mapper.Map(updateProductDto, existingProduct);
+                       await _unitOfWork.Products.UpdateAsync(existingProduct);
+                       await _unitOfWork.SaveChangesAsync();
+                       await _unitOfWork.CommitTransactionAsync();
 
-                    return Ok(new { message = "Product updated successfully" });
+                       return Ok(new { message = "Product updated successfully" });
                 }
                 catch
                 {
@@ -186,22 +186,22 @@ namespace E_Commerce.Controllers
                 var currentUserId = GetCurrentUserId();
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                var product = await _unitOfWork.Products.GetByIdAsync(id);
+                        var product = await _unitOfWork.Products.GetByIdAsync(id);
 
 
-                if (product == null)
-                {
-                    return NotFound($"Product with id {id} not found");
-                }
-                if (product.SellerId != currentUserId)
-                {
-                    return Forbid(); // or return Unauthorized();
-                }
+                        if (product == null)
+                        {
+                            return NotFound($"Product with id {id} not found");
+                        }
+                        if (product.SellerId != currentUserId)
+                        {
+                            return Forbid(); // or return Unauthorized();
+                        }
 
-                await _unitOfWork.Products.DeleteAsync(id);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
-                    return Ok(new { message = "Product deleted successfully" });
+                        await _unitOfWork.Products.DeleteAsync(id);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        return Ok(new { message = "Product deleted successfully" });
                 }
                 catch
                 {

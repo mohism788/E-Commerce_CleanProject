@@ -1,12 +1,9 @@
 ﻿using System.Security.Claims;
 using AutoMapper;
 using E_Commerce.DTOs.OrderItemDTO;
-using E_Commerce.DTOs.ReviewDTO;
 using E_Commerce.Models;
-using E_Commerce.Repositrories.Interfaces;
 using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_Commerce.Controllers
@@ -56,17 +53,18 @@ namespace E_Commerce.Controllers
             {
                 var currentUserId = GetCurrentUserId();
 
+
                 // Ensure user can only add items to their own order
                 if (userId != currentUserId)
                 {
                     return Forbid();
                 }
 
-                // Use transaction for atomic operation
                 await _unitOfWork.BeginTransactionAsync();
-
                 try
                 {
+
+
                     // Perform all operations
                     await _unitOfWork.OrderItems.AddOrderItemAsync(createOrderItemDto);
 
@@ -88,7 +86,9 @@ namespace E_Commerce.Controllers
                     await _unitOfWork.RollbackTransactionAsync();
                     throw;
                 }
-            }
+
+
+                }
             catch (Exception ex)
             {
                 return StatusCode(500, $"An error occurred: {ex.Message}");

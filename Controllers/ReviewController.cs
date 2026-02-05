@@ -2,6 +2,7 @@
 using E_Commerce.DTOs.ReviewDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -13,12 +14,14 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class ReviewController : ControllerBase
     {
-        private readonly IReviewRepository _reviewRepo;
+        
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
 
-        public ReviewController(IReviewRepository reviewRepo, IMapper mapper)
+        public ReviewController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _reviewRepo = reviewRepo;
+            
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
 
@@ -29,7 +32,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var reviews = await _reviewRepo.GetReviewsByProductIdAsync(productId);
+                var reviews = await _unitOfWork.Reviews.GetReviewsByProductIdAsync(productId);
                 return Ok(reviews);
             }
             catch (UnauthorizedAccessException ex)
@@ -52,11 +55,23 @@ namespace E_Commerce.Controllers
         {
             try
             {
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
+                
                 var review = _mapper.Map<Review>(createReviewDto);
                 review.CreatedAt = DateTime.UtcNow;
-                await _reviewRepo.AddAsync(review);
+                await _unitOfWork.Reviews.AddAsync(review);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
                 return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
+
             catch (Exception ex)
             {
                 return new ObjectResult($"An error occurred while creating the review: {ex.Message}")
@@ -73,19 +88,30 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-
-                var existingReview = await _reviewRepo.GetByIdAsync(id);
-                if (existingReview == null)
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    return NotFound($"Review with id {id} not found");
+                    
+                    var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
+                    if (existingReview == null)
+                    {
+                        return NotFound($"Review with id {id} not found");
+                    }
+                    if (existingReview.UserId != currentUserId)
+                    {
+                        return Forbid(); // or return Unauthorized();
+                    }
+                    _mapper.Map(updateReviewDto, existingReview);
+                    await _unitOfWork.Reviews.UpdateAsync(existingReview);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return NoContent();
                 }
-                if (existingReview.UserId != currentUserId)
+                catch
                 {
-                    return Forbid(); // or return Unauthorized();
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
                 }
-                _mapper.Map(updateReviewDto, existingReview);
-                await _reviewRepo.UpdateAsync(existingReview);
-                return NoContent();
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -108,19 +134,29 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                var existingReview = await _reviewRepo.GetByIdAsync(id);
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
+                         var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
 
-                if (existingReview == null)
-                {
-                    return NotFound($"Review with id {id} not found");
-                }
-                if (existingReview.UserId != currentUserId && !User.IsInRole("Admin"))
-                {
-                    return Forbid(); // or return Unauthorized();
-                }
+                         if (existingReview == null)
+                         {
+                             return NotFound($"Review with id {id} not found");
+                         }
+                         if (existingReview.UserId != currentUserId && !User.IsInRole("Admin"))
+                         {
+                             return Forbid(); // or return Unauthorized();
+                         }
 
-                await _reviewRepo.DeleteAsync(existingReview.Id);
-                return NoContent();
+                         await _unitOfWork.Reviews.DeleteAsync(existingReview.Id);
+                         await _unitOfWork.SaveChangesAsync();
+                           await _unitOfWork.CommitTransactionAsync();
+                         return NoContent();
+                         }
+                         catch
+                         {
+                             await _unitOfWork.RollbackTransactionAsync();
+                             throw;
+                         }
             }
             catch (UnauthorizedAccessException ex)
             {

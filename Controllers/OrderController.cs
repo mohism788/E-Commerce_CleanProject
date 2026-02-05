@@ -1,9 +1,8 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿
 using System.Security.Claims;
 using AutoMapper;
 using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
-using E_Commerce.Repositrories.Interfaces;
 using E_Commerce.Repositrories.UnitOfWork;
 using E_Commerce.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -43,6 +42,7 @@ namespace E_Commerce.Controllers
             {
                 var orders = await _unitOfWork.Orders.GetAllAsync();
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
+
 
                 return Ok(new ApiResponse<List<OrderDto>>
                 {
@@ -133,7 +133,9 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetUserIdFromToken();
-                var orders = await _unitOfWork.Orders.GetUserOrdersAsync(userId);
+                
+                       
+                 var orders = await _unitOfWork.Orders.GetUserOrdersAsync(userId);
 
                 // Ensure user can only access their own orders unless they are an Admin
                 if (userId != currentUserId && !User.IsInRole("Admin"))
@@ -151,6 +153,8 @@ namespace E_Commerce.Controllers
                     Message = "User orders retrieved successfully",
                     Count = orderDtos.Count
                 });
+                      
+                      
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -200,19 +204,21 @@ namespace E_Commerce.Controllers
 
                 // Get userId from authentication token (not from parameter)
                 var userId = GetUserIdFromToken();
+               
+                 var order = await _orderService.BuyNowAsync(userId, buyNowDto);
+                 
+                 var orderDto = _mapper.Map<OrderDto>(order);
 
-                var order = await _orderService.BuyNowAsync(userId, buyNowDto);
-                var orderDto = _mapper.Map<OrderDto>(order);
 
-
-                return CreatedAtAction(nameof(GetOrderById),
-                    new { orderId = order.Id },
-                    new ApiResponse<OrderDto>
-                    {
-                        Success = true,
-                        Data = orderDto,
-                        Message = "Order created successfully via Buy Now"
-                    });
+                 return CreatedAtAction(nameof(GetOrderById),
+                     new { orderId = order.Id },
+                     new ApiResponse<OrderDto>
+                     {
+                         Success = true,
+                         Data = orderDto,
+                         Message = "Order created successfully via Buy Now"
+                     });
+                        
             }
             catch (KeyNotFoundException ex)
             {
@@ -258,6 +264,8 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetUserIdFromToken();
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
                 var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
                 if (order == null)
                 {
@@ -275,12 +283,19 @@ namespace E_Commerce.Controllers
                 }
                 await _unitOfWork.Orders.DeleteAsync(order.Id);
                 await _unitOfWork.SaveChangesAsync();
-                return Ok(new ApiResponse<string>
+                    await _unitOfWork.CommitTransactionAsync();
+                    return Ok(new ApiResponse<string>
                 {
                     Success = true,
                     Data = null,
                     Message = "Order deleted successfully"
                 });
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {

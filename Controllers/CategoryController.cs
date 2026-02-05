@@ -3,6 +3,7 @@ using AutoMapper;
 using E_Commerce.DTOs.CategoryDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,12 +14,13 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class CategoryController : ControllerBase
     {
-        private readonly ICategoryRepository _categoryRepo;
+ 
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
 
-        public CategoryController(ICategoryRepository categoryRepo, IMapper mapper)
+        public CategoryController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _categoryRepo = categoryRepo;
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
 
@@ -29,7 +31,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var categories = await _categoryRepo.GetAllAsync();
+                var categories = await _unitOfWork.Categories.GetAllAsync();
                 return Ok(categories);
             }
             catch (Exception ex)
@@ -47,7 +49,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var category = await _categoryRepo.GetByIdAsync(id);
+                var category = await _unitOfWork.Categories.GetByIdAsync(id);
                 
                 if (category == null)
                 {
@@ -79,10 +81,21 @@ namespace E_Commerce.Controllers
                 {
                     return BadRequest(ModelState);
                 }
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
 
-                var category = _mapper.Map<Category>(createCategoryDto);
-                await _categoryRepo.AddAsync(category);
-                return StatusCode(201, new { message = "Category created successfully" });
+                    var category = _mapper.Map<Category>(createCategoryDto);
+                    await _unitOfWork.Categories.AddAsync(category);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return StatusCode(201, new { message = "Category created successfully" });
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
@@ -100,12 +113,24 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                if (!await _categoryRepo.ExistsAsync(id))
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    return NotFound($"Category with id {id} not found");
+                    if (!await _unitOfWork.Categories.ExistsAsync(id))
+                    {
+                        return NotFound($"Category with id {id} not found");
+                    }
+                    await _unitOfWork.Categories.DeleteAsync(id);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return Ok(new { message = "Category deleted successfully" });
                 }
-                await _categoryRepo.DeleteAsync(id);
-                return Ok(new { message = "Category deleted successfully" });
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+
+                }
             }
             catch (Exception ex)
             {
@@ -128,16 +153,28 @@ namespace E_Commerce.Controllers
                 {
                     return BadRequest(ModelState);
                 }
-                var existingCategory = await _categoryRepo.GetByIdAsync(id);
-                if (existingCategory == null)
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    return NotFound($"Category with id {id} not found");
+                    var existingCategory = await _unitOfWork.Categories.GetByIdAsync(id);
+                    if (existingCategory == null)
+                    {
+                        return NotFound($"Category with id {id} not found");
+                    }
+                    _mapper.Map(updateCategoryDto, existingCategory);
+                    await _unitOfWork.Categories.UpdateAsync(existingCategory);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    return Ok(new { message = "Category updated successfully" });
                 }
-                _mapper.Map(updateCategoryDto, existingCategory);
-                await _categoryRepo.UpdateAsync(existingCategory);
-                return Ok(new { message = "Category updated successfully" });
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
-            catch (Exception ex)
+                catch (Exception ex)
             {
                 return new ObjectResult($"An error occurred while updating the category: {ex.Message}")
                 {

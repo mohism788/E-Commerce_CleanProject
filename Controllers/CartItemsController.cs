@@ -91,15 +91,24 @@ namespace E_Commerce.Controllers
                 {
                     return Forbid(); // or BadRequest("Cannot add items to another user's cart");
                 }
-
-                var cartItem = _mapper.Map<CartItem>(createCartItemDto);
-                await _unitOfWork.CartItems.AddAsync(cartItem);
-                await _unitOfWork.SaveChangesAsync();
-                return StatusCode(201, new
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                            success = true, 
-                            message = "Cart item Added successfully" 
-                });
+                    var cartItem = _mapper.Map<CartItem>(createCartItemDto);
+                    await _unitOfWork.CartItems.AddAsync(cartItem);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return StatusCode(201, new
+                    {
+                        success = true,
+                        message = "Cart item Added successfully"
+                    });
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -122,23 +131,33 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                var cartItem = await _unitOfWork.CartItems.GetByIdAsync(id);
-                
-                // Ensure user can only delete items from their own cart
-                if (cartItem.UserId != currentUserId)
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    return Forbid(); // or return Unauthorized();
-                }
+                    var cartItem = await _unitOfWork.CartItems.GetByIdAsync(id);
 
-                if (cartItem == null)
+                    // Ensure user can only delete items from their own cart
+                    if (cartItem.UserId != currentUserId)
+                    {
+                        return Forbid(); // or return Unauthorized();
+                    }
+
+                    if (cartItem == null)
+                    {
+                        return NotFound(new { success = false, message = "Cart item not found" });
+                    }
+
+
+                    await _unitOfWork.CartItems.DeleteAsync(id);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return Ok(new { success = true, message = "Cart item deleted successfully" });
+                }
+                catch
                 {
-                    return NotFound(new { success = false, message = "Cart item not found" });
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
                 }
-                
-
-                await _unitOfWork.CartItems.DeleteAsync(id);
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(new { success = true, message = "Cart item deleted successfully" });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -168,9 +187,20 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
 
-                await _unitOfWork.CartItems.DeleteWholeCartByUserIdAsync(userId);
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(new { success = true, message = "Whole cart deleted successfully" });
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+
+                    await _unitOfWork.CartItems.DeleteWholeCartByUserIdAsync(userId);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    return Ok(new { success = true, message = "Whole cart deleted successfully" });
+                }
+                catch
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {
