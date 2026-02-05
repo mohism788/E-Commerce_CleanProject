@@ -1,7 +1,9 @@
-﻿using AutoMapper;
+﻿using System.Security.Claims;
+using AutoMapper;
 using E_Commerce.DTOs.ProductDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
+using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -12,12 +14,12 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class ProductController : ControllerBase
     {
-        private readonly IProductRepository _productRepo;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
 
-        public ProductController(IProductRepository productRepo, IMapper mapper)
+        public ProductController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _productRepo = productRepo;
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
 
@@ -27,7 +29,10 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var pagedResult = await _productRepo.GetProductsAsync(queryParameters);
+                await _unitOfWork.BeginTransactionAsync();
+
+                try { 
+                var pagedResult = await _unitOfWork.Products.GetProductsAsync(queryParameters);
 
                 return Ok(new
                 {
@@ -43,6 +48,13 @@ namespace E_Commerce.Controllers
                         pagedResult.HasNextPage
                     }
                 });
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
@@ -54,6 +66,23 @@ namespace E_Commerce.Controllers
             }
         }
 
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProductById(int id)
+        {
+            try
+            {
+                var product = await _unitOfWork.Products.GetByIdAsync(id);
+                if (product == null)
+                {
+                    return NotFound(new { Success = false, Message = $"Product with id {id} not found" });
+                }
+                return Ok(new { Success = true, Data = product });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Success = false, Message = $"An error occurred: {ex.Message}" });
+            }
+        }
 
         //add product
         [HttpPost]
@@ -62,18 +91,34 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                
+                var sellerId = GetCurrentUserId();
+
+
+
                 Product product = new Product
                 {
                     Name = createProductDto.Name,
                     Description = createProductDto.Description,
                     Price = createProductDto.Price,
                     Stock = createProductDto.Stock,
-                    SellerId = createProductDto.SellerId,
+                    SellerId = sellerId,
                     CategoryId = createProductDto.CategoryId
                 };
-                await _productRepo.AddAsync(product);
-                return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
+
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
+                await _unitOfWork.Products.AddAsync(product);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                    return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (Exception ex)
             {
@@ -93,7 +138,9 @@ namespace E_Commerce.Controllers
             {
                 var currentUserId = GetCurrentUserId();
 
-                var existingProduct = await _productRepo.GetByIdAsync(id);
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
+                var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
                 
                 if (existingProduct == null)
                 {
@@ -104,8 +151,18 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
                 _mapper.Map(updateProductDto, existingProduct);
-                await _productRepo.UpdateAsync(existingProduct);
-                return Ok(new { message = "Product updated successfully" });
+                await _unitOfWork.Products.UpdateAsync(existingProduct);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                    return Ok(new { message = "Product updated successfully" });
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -127,7 +184,9 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                var product = await _productRepo.GetByIdAsync(id);
+                await _unitOfWork.BeginTransactionAsync();
+                try { 
+                var product = await _unitOfWork.Products.GetByIdAsync(id);
 
 
                 if (product == null)
@@ -139,8 +198,17 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
 
-                await _productRepo.DeleteAsync(id);
-                return Ok(new { message = "Product deleted successfully" });
+                await _unitOfWork.Products.DeleteAsync(id);
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                    return Ok(new { message = "Product deleted successfully" });
+                }
+                catch
+                {
+                    // Rollback on error
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -158,13 +226,18 @@ namespace E_Commerce.Controllers
         //get user by token
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
-            if (userIdClaim == null)
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
+                                                           c.Type == ClaimTypes.NameIdentifier ||
+                                                           c.Type == "sub");
+
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
-                throw new UnauthorizedAccessException("User ID claim not found");
+                throw new UnauthorizedAccessException("User not authenticated");
             }
-            return Guid.Parse(userIdClaim.Value);
+
+            return userId;
         }
     }
+    
 }
 
