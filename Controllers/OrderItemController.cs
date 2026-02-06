@@ -14,11 +14,14 @@ namespace E_Commerce.Controllers
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
-        public OrderItemController(IUnitOfWork unitOfWork, IMapper mapper)
+        private readonly ILogger<OrderItemController> _logger;
+
+        public OrderItemController(IUnitOfWork unitOfWork, IMapper mapper,ILogger<OrderItemController> logger)
         {
 
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
 
         //get all order items
@@ -30,6 +33,7 @@ namespace E_Commerce.Controllers
             {
                 var orderItems = await _unitOfWork.OrderItems.GetAllAsync();
                var orderItemDtos = _mapper.Map<IEnumerable<OrderItemDto>>(orderItems);
+                _logger.LogInformation($"Retrieved {orderItemDtos.Count()} order items");
 
 
                 return Ok(orderItemDtos);
@@ -47,24 +51,18 @@ namespace E_Commerce.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Customer")]
-        public async Task<IActionResult> CreateOrderItem([FromBody] CreateOrderItemDto createOrderItemDto, Guid userId)
+        public async Task<IActionResult> CreateOrderItem([FromBody] CreateOrderItemDto createOrderItemDto)
         {
             try
             {
                 var currentUserId = GetCurrentUserId();
 
 
-                // Ensure user can only add items to their own order
-                if (userId != currentUserId)
-                {
-                    return Forbid();
-                }
-
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
 
-
+                    _logger.LogInformation($"Creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
                     // Perform all operations
                     await _unitOfWork.OrderItems.AddOrderItemAsync(createOrderItemDto);
 
@@ -77,6 +75,7 @@ namespace E_Commerce.Controllers
                     // Map and return
                     var orderItem = _mapper.Map<OrderItem>(createOrderItemDto);
                     var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
+                    _logger.LogInformation($"Order item created successfully for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
 
                     return CreatedAtAction(nameof(GetOrderItems), new { id = orderItem.Id }, orderItemDto);
                 }
@@ -84,6 +83,7 @@ namespace E_Commerce.Controllers
                 {
                     // Rollback on error
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"Error occurred while creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}. Transaction rolled back.");
                     throw;
                 }
 
@@ -107,8 +107,9 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.BeginTransactionAsync();
 
                 try { 
+                    _logger.LogInformation($"Attempting to delete order item with id {id} for user {currentUserId}");
 
-                var orderItem = await _unitOfWork.OrderItems.GetByIdAsync(id);
+                    var orderItem = await _unitOfWork.OrderItems.GetByIdAsync(id);
 
                 if (orderItem == null)
                 {
@@ -124,12 +125,14 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.OrderItems.DeleteAsync(orderItem.Id);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation($"Order item with id {id} deleted successfully for user {currentUserId}");
                     return NoContent();
                 }
                 catch
                 {
                     // Rollback on error
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while deleting order item with id {id} for user {currentUserId}. Transaction rolled back.");
                     throw;
                 }
             }

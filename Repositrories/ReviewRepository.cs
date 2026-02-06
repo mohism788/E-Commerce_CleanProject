@@ -36,22 +36,19 @@ namespace E_Commerce.Repositrories
                  .ToListAsync();*/
 
             return await _dbContext.Reviews
-                                   .AsNoTracking()
-                                   .Where(r => r.ProductId == productId)
-                                   .Join<Review, User, string, ReviewDto>(  // <TOuter, TInner, TKey, TResult>
-                                       _dbContext.Users,
-                                       review => review.UserId.ToString(),
-                                       user => user.Id,
-                                       (review, user) => new ReviewDto
-                                       {
-                                           ProductId = review.ProductId,
-                                           Rating = review.Rating,
-                                           Comment = review.Comment,
-                                           CreatedAt = review.CreatedAt,
-                                           UserId = review.UserId,
-                                           Username = user.UserName
-                                       })
-                                         .ToListAsync();
+                                          .AsNoTracking()
+                                          .Where(r => r.ProductId == productId)
+                                          .Include(r => r.User)   // Load related User
+                                          .Select(r => new ReviewDto
+                                          {
+                                              ProductId = r.ProductId,
+                                              Rating = r.Rating,
+                                              Comment = r.Comment,
+                                              CreatedAt = r.CreatedAt,
+                                              UserId = r.UserId,
+                                              Username = r.User.UserName
+                                          })
+                                          .ToListAsync();
 
         }
     }

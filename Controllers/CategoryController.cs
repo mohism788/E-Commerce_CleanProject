@@ -17,11 +17,13 @@ namespace E_Commerce.Controllers
  
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly ILogger<CategoryController> _logger;
 
-        public CategoryController(IUnitOfWork unitOfWork, IMapper mapper)
+        public CategoryController(IUnitOfWork unitOfWork, IMapper mapper,ILogger<CategoryController> logger)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
 
 
@@ -32,6 +34,7 @@ namespace E_Commerce.Controllers
             try
             {
                 var categories = await _unitOfWork.Categories.GetAllAsync();
+                _logger.LogInformation($"Retrieved {categories.Count()} categories");
                 return Ok(categories);
             }
             catch (Exception ex)
@@ -49,6 +52,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
+                _logger.LogInformation($"Retrieving category with id {id}");
                 var category = await _unitOfWork.Categories.GetByIdAsync(id);
                 
                 if (category == null)
@@ -57,6 +61,8 @@ namespace E_Commerce.Controllers
                 }
 
                 var categoryDto = _mapper.Map<Category>(category);
+                _logger.LogInformation($"Category with id {id} retrieved successfully");
+
                 return Ok(categoryDto);
             }
             catch (Exception ex)
@@ -84,16 +90,19 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
-
+                    _logger.LogInformation($"Adding new category with name {createCategoryDto.Name}");
                     var category = _mapper.Map<Category>(createCategoryDto);
                     await _unitOfWork.Categories.AddAsync(category);
+
                     await _unitOfWork.SaveChangesAsync();
                     await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation($"Category with name {createCategoryDto.Name} added successfully");
                     return StatusCode(201, new { message = "Category created successfully" });
                 }
                 catch
                 {
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while adding category with name {createCategoryDto.Name}");
                     throw;
                 }
             }
@@ -116,6 +125,7 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
+                    _logger.LogInformation($"Deleting category with id {id}");
                     if (!await _unitOfWork.Categories.ExistsAsync(id))
                     {
                         return NotFound($"Category with id {id} not found");
@@ -123,11 +133,14 @@ namespace E_Commerce.Controllers
                     await _unitOfWork.Categories.DeleteAsync(id);
                     await _unitOfWork.SaveChangesAsync();
                     await _unitOfWork.CommitTransactionAsync();
+
+                    _logger.LogInformation($"Category with id {id} deleted successfully");  
                     return Ok(new { message = "Category deleted successfully" });
                 }
                 catch
                 {
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while deleting category with id {id}");
                     throw;
 
                 }
@@ -156,6 +169,7 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
+                    _logger.LogInformation($"Updating category with id {id}");
                     var existingCategory = await _unitOfWork.Categories.GetByIdAsync(id);
                     if (existingCategory == null)
                     {
@@ -165,12 +179,14 @@ namespace E_Commerce.Controllers
                     await _unitOfWork.Categories.UpdateAsync(existingCategory);
                     await _unitOfWork.SaveChangesAsync();
                     await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation($"Category with id {id} updated successfully");
 
                     return Ok(new { message = "Category updated successfully" });
                 }
                 catch
                 {
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while updating category with id {id}");
                     throw;
                 }
             }

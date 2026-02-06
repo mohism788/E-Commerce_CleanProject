@@ -8,21 +8,26 @@ using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
 using E_Commerce.Exceptions;
 using E_Commerce.Models;
+using Microsoft.Extensions.Logging;
 
 namespace E_Commerce.Data
 {
     public class UnitOfWorkClass : IUnitOfWork
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ApplicationDbContext _context; 
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<UnitOfWorkClass> _logger;
         private IDbContextTransaction _currentTransaction;
         private bool _disposed = false;
 
         // Cache for repositories
         private Dictionary<Type, object> _repositories;
 
-        public UnitOfWorkClass(ApplicationDbContext context)
+        public UnitOfWorkClass(ApplicationDbContext context, ILoggerFactory loggerFactory,ILogger<UnitOfWorkClass> logger)
         {
             _context = context;
+            _loggerFactory = loggerFactory;
+            _logger = logger;
             _repositories = new Dictionary<Type, object>();
         }
 
@@ -37,7 +42,7 @@ namespace E_Commerce.Data
         public ICategoryRepository Categories => _categories ??= new CategoryRepository(_context);
 
         private ICartItemRepository _cartItems;
-        public ICartItemRepository CartItems => _cartItems ??= new CartItemRepository(_context);
+        public ICartItemRepository CartItems => _cartItems ??= new CartItemRepository(_context, _loggerFactory.CreateLogger<CartItemRepository>());
 
         private IOrderItemRepository _orderItems;
         public IOrderItemRepository OrderItems => _orderItems ??= new OrderItemRepository(_context);
@@ -55,6 +60,7 @@ namespace E_Commerce.Data
             {
                 _repositories[type] = new GenericRepository<T>(_context);
             }
+            _logger.LogInformation("Accessing repository for type {Type}", type.Name);
             return (IGenericRepository<T>)_repositories[type];
         }
 
@@ -63,11 +69,13 @@ namespace E_Commerce.Data
         {
             try
             {
-               
+               _logger.LogInformation("Saving changes to database");
                 return await _context.SaveChangesAsync(cancellationToken);
+               
             }
             catch (DbUpdateException ex)
             {
+                _logger.LogError(ex, "An error occurred while saving changes to the database");
                 throw new UnitOfWorkException("Failed to save changes to database", ex);
             }
         }
@@ -109,6 +117,7 @@ namespace E_Commerce.Data
                 throw new UnitOfWorkException("A transaction is already in progress");
 
             _currentTransaction = await _context.Database.BeginTransactionAsync(isolationLevel);
+            _logger.LogInformation("Transaction started with isolation level {IsolationLevel}", isolationLevel);
         }
 
         public async Task CommitTransactionAsync()
@@ -120,6 +129,7 @@ namespace E_Commerce.Data
             {
                 await SaveChangesAsync();
                 await _currentTransaction.CommitAsync();
+                _logger.LogInformation("Transaction committed successfully");
             }
             catch
             {
@@ -140,6 +150,7 @@ namespace E_Commerce.Data
             try
             {
                 await _currentTransaction.RollbackAsync();
+                _logger.LogInformation("Transaction rolled back");
             }
             finally
             {

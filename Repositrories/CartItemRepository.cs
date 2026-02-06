@@ -9,9 +9,12 @@ namespace E_Commerce.Repositrories
     public class CartItemRepository : GenericRepository<CartItem>, ICartItemRepository
     {
         private readonly ApplicationDbContext _dbContext;
-        public CartItemRepository(ApplicationDbContext dbContext) : base(dbContext)
+        private readonly ILogger<CartItemRepository> _logger;
+
+        public CartItemRepository(ApplicationDbContext dbContext,ILogger<CartItemRepository> logger) : base(dbContext)
         {
             _dbContext = dbContext;
+            _logger = logger;
         }
 
 
@@ -23,7 +26,7 @@ namespace E_Commerce.Repositrories
                 .Where(ci => ci.UserId == userId)
                 .ToListAsync();
 
-            Console.WriteLine($"Query returned: {cartItems.Count} items");
+            _logger.LogInformation("Retrieved {Count} cart items for user {UserId}", cartItems.Count, userId);
 
             return cartItems;
 
@@ -34,6 +37,7 @@ namespace E_Commerce.Repositrories
             // Check if user exists
             var user = await _dbContext.Users
                 .FirstOrDefaultAsync(u => u.Id.ToString() == cartItem.UserId.ToString());
+            _logger.LogInformation("Adding cart item for user {UserId} with product {ProductId} and quantity {Quantity}", cartItem.UserId, cartItem.ProductId, cartItem.Quantity);
 
             if (user == null)
             {
@@ -61,10 +65,11 @@ namespace E_Commerce.Repositrories
                 // Update quantity instead of adding new
                 existingCartItem.Quantity += cartItem.Quantity;
                 _dbContext.CartItems.Update(existingCartItem);
-                await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("Existing cart item found for user {UserId} and product {ProductId}. Updated quantity to {Quantity}.", cartItem.UserId, cartItem.ProductId, existingCartItem.Quantity);
                 return existingCartItem;
             }
 
+            _logger.LogInformation("No existing cart item found for user {UserId} and product {ProductId}. Adding new cart item.", cartItem.UserId, cartItem.ProductId);
             // Add new cart item
             return await base.AddAsync(cartItem);
         }
@@ -84,7 +89,8 @@ namespace E_Commerce.Repositrories
             if (cartItems.Any())
             {
                 _dbContext.CartItems.RemoveRange(cartItems);
-                await _dbContext.SaveChangesAsync();
+               _logger.LogInformation("Deleted {Count} cart items for user {UserId}", cartItems.Count, userId);
+               
             }
         }
     }

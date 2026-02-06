@@ -52,7 +52,6 @@ namespace E_Commerce.Repositrories
                     if (entity != null)
                     {
                         _dbSet.Remove(entity);
-                        await _context.SaveChangesAsync();
                     }
                 }
                 catch

@@ -40,10 +40,11 @@ namespace E_Commerce.Controllers
         {
             try
             {
+                _logger.LogInformation("Retrieving all orders");
                 var orders = await _unitOfWork.Orders.GetAllAsync();
                 var orderDtos = _mapper.Map<List<OrderDto>>(orders);
 
-
+                _logger.LogInformation($"Retrieved {orderDtos.Count} orders successfully");
                 return Ok(new ApiResponse<List<OrderDto>>
                 {
                     Success = true,

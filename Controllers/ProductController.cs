@@ -16,11 +16,13 @@ namespace E_Commerce.Controllers
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly ILogger<ProductController> _logger;
 
-        public ProductController(IUnitOfWork unitOfWork, IMapper mapper)
+        public ProductController(IUnitOfWork unitOfWork, IMapper mapper, ILogger<ProductController> logger)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
 
 
@@ -29,11 +31,10 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                await _unitOfWork.BeginTransactionAsync();
+                
 
-                try { 
                 var pagedResult = await _unitOfWork.Products.GetProductsAsync(queryParameters);
-
+                _logger.LogInformation($"Retrieved {pagedResult.Items.Count()} products (Page {pagedResult.Page} of {pagedResult.TotalPages}) with filters: Name={queryParameters.Name}, CategoryId={queryParameters.CategoryId}, MinPrice={queryParameters.MinPrice}, MaxPrice={queryParameters.MaxPrice}");
                 return Ok(new
                 {
                     Success = true,
@@ -48,13 +49,7 @@ namespace E_Commerce.Controllers
                         pagedResult.HasNextPage
                     }
                 });
-                }
-                catch
-                {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    throw;
-                }
+                
             }
             catch (Exception ex)
             {
@@ -71,11 +66,13 @@ namespace E_Commerce.Controllers
         {
             try
             {
+                _logger.LogInformation($"Retrieving product with id {id}");
                 var product = await _unitOfWork.Products.GetByIdAsync(id);
                 if (product == null)
                 {
                     return NotFound(new { Success = false, Message = $"Product with id {id} not found" });
                 }
+                _logger.LogInformation($"Product with id {id} retrieved successfully: {product.Name}");
                 return Ok(new { Success = true, Data = product });
             }
             catch (Exception ex)
@@ -107,16 +104,19 @@ namespace E_Commerce.Controllers
 
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                       await _unitOfWork.Products.AddAsync(product);
+                    _logger.LogInformation($"Adding new product '{product.Name}' for seller {sellerId}");
+                    await _unitOfWork.Products.AddAsync(product);
                        await _unitOfWork.SaveChangesAsync();
                        await _unitOfWork.CommitTransactionAsync();
 
-                       return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
+                        _logger.LogInformation($"Product '{product.Name}' added successfully with id {product.Id}");
+                    return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
                 }
                 catch
                 {
                     // Rollback on error
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"Error occurred while adding product '{product.Name}' for seller {sellerId}. Transaction rolled back.");
                     throw;
                 }
             }
@@ -140,7 +140,8 @@ namespace E_Commerce.Controllers
 
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                       var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
+                    _logger.LogInformation($"Updating product with id {id} for seller {currentUserId}");
+                    var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
                        
                        if (existingProduct == null)
                        {
@@ -155,12 +156,14 @@ namespace E_Commerce.Controllers
                        await _unitOfWork.SaveChangesAsync();
                        await _unitOfWork.CommitTransactionAsync();
 
-                       return Ok(new { message = "Product updated successfully" });
+                    _logger.LogInformation($"Product with id {id} updated successfully for seller {currentUserId}");
+                    return Ok(new { message = "Product updated successfully" });
                 }
                 catch
                 {
                     // Rollback on error
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"Error occurred while updating product with id {id} for seller {currentUserId}. Transaction rolled back.");
                     throw;
                 }
             }
@@ -186,7 +189,8 @@ namespace E_Commerce.Controllers
                 var currentUserId = GetCurrentUserId();
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                        var product = await _unitOfWork.Products.GetByIdAsync(id);
+                    _logger.LogInformation($"Deleting product with id {id} for seller {currentUserId}");
+                    var product = await _unitOfWork.Products.GetByIdAsync(id);
 
 
                         if (product == null)
@@ -201,12 +205,14 @@ namespace E_Commerce.Controllers
                         await _unitOfWork.Products.DeleteAsync(id);
                         await _unitOfWork.SaveChangesAsync();
                         await _unitOfWork.CommitTransactionAsync();
-                        return Ok(new { message = "Product deleted successfully" });
+                    _logger.LogInformation($"Product with id {id} deleted successfully for seller {currentUserId}");
+                    return Ok(new { message = "Product deleted successfully" });
                 }
                 catch
                 {
                     // Rollback on error
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while deleting product with id {id} for seller {currentUserId}. Transaction rolled back.");
                     throw;
                 }
             }

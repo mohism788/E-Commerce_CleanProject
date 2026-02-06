@@ -17,12 +17,14 @@ namespace E_Commerce.Controllers
         
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly ILogger<ReviewController> _logger;
 
-        public ReviewController(IUnitOfWork unitOfWork, IMapper mapper)
+        public ReviewController(IUnitOfWork unitOfWork, IMapper mapper,ILogger<ReviewController> logger)
         {
             
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
 
         //Get reviews by product id
@@ -33,6 +35,7 @@ namespace E_Commerce.Controllers
             try
             {
                 var reviews = await _unitOfWork.Reviews.GetReviewsByProductIdAsync(productId);
+                _logger.LogInformation($"Retrieved {reviews.Count()} reviews for product with id {productId}");
                 return Ok(reviews);
             }
             catch (UnauthorizedAccessException ex)
@@ -57,17 +60,19 @@ namespace E_Commerce.Controllers
             {
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                
-                var review = _mapper.Map<Review>(createReviewDto);
+                _logger.LogInformation($"Creating review for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");
+                    var review = _mapper.Map<Review>(createReviewDto);
                 review.CreatedAt = DateTime.UtcNow;
                 await _unitOfWork.Reviews.AddAsync(review);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
-                return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
+                    _logger.LogInformation($"Review created successfully for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");
+                    return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
                 }
                 catch
                 {
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while creating review for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");  
                     throw;
                 }
             }
@@ -91,7 +96,7 @@ namespace E_Commerce.Controllers
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
-                    
+                    _logger.LogInformation($"Updating review with id {id} by user with id {currentUserId}");
                     var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
                     if (existingReview == null)
                     {
@@ -105,11 +110,13 @@ namespace E_Commerce.Controllers
                     await _unitOfWork.Reviews.UpdateAsync(existingReview);
                     await _unitOfWork.SaveChangesAsync();
                     await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation($"Review with id {id} updated successfully by user with id {currentUserId}");
                     return NoContent();
                 }
                 catch
                 {
                     await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError($"An error occurred while updating review with id {id} by user with id {currentUserId}");
                     throw;
                 }
             }
@@ -136,7 +143,8 @@ namespace E_Commerce.Controllers
                 var currentUserId = GetCurrentUserId();
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                         var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
+                    _logger.LogInformation($"Deleting review with id {id} by user with id {currentUserId}");
+                    var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
 
                          if (existingReview == null)
                          {
@@ -150,11 +158,13 @@ namespace E_Commerce.Controllers
                          await _unitOfWork.Reviews.DeleteAsync(existingReview.Id);
                          await _unitOfWork.SaveChangesAsync();
                            await _unitOfWork.CommitTransactionAsync();
-                         return NoContent();
+                    _logger.LogInformation($"Review with id {id} deleted successfully by user with id {currentUserId}");
+                    return NoContent();
                          }
                          catch
                          {
                              await _unitOfWork.RollbackTransactionAsync();
+                             _logger.LogError($"An error occurred while deleting review with id {id} by user with id {currentUserId}");
                              throw;
                          }
             }

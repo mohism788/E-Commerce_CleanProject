@@ -1,14 +1,13 @@
 ﻿using E_Commerce.DTOs.UserDTO;
 using E_Commerce.Models;
 using E_Commerce.TokenService;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using RouteAttribute = Microsoft.AspNetCore.Components.RouteAttribute;
+
 
 namespace E_Commerce.Controllers
 {
-    [Route("api/user")]
+    [Route("api/[controller]")]
     [ApiController]
     public class UserController
     {
