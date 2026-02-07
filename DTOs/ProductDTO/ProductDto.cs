@@ -10,6 +10,7 @@
         public Guid SellerId { get; set; }
 
         public int CategoryId { get; set; }
+        public string SellerName { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

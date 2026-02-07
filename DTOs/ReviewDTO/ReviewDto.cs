@@ -2,6 +2,7 @@
 {
     public class ReviewDto
     {
+        public int Id { get; set; }
         public int ProductId { get; set; }
         public Guid UserId { get; set; }
         public int Rating { get; set; } // e.g., 1 to 5

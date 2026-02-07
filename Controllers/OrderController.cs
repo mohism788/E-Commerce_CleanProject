@@ -438,7 +438,9 @@ namespace E_Commerce.Controllers
 
         private Guid GetUserIdFromToken()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
+                                                           c.Type == "sub" ||
+                                                           c.Type == ClaimTypes.NameIdentifier);
 
             if (userIdClaim is null)
             {

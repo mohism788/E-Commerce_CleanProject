@@ -21,7 +21,7 @@ namespace E_Commerce.Repositrories
         public async Task<PagedResult<Product>> GetProductsAsync(ProductQueryParameters queryParameters)
         {
             var query = _dbContext.Products
-            .Include(p => p.Categories)  // Include categories if needed
+            .Include(p => p.Category)  // Include category details
             .AsQueryable();
 
             // Apply filters
@@ -146,6 +146,51 @@ namespace E_Commerce.Repositrories
                     ? query.OrderByDescending(p => p.Name)
                     : query.OrderBy(p => p.Name)
             };
+        }
+        public override async Task DeleteAsync(int id)
+        {
+            var product = await _dbContext.Products
+                .Include(p => p.OrderItems)
+                    .ThenInclude(oi => oi.Order)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (product != null)
+            {
+                // Handle related order items and their parent orders
+                if (product.OrderItems != null && product.OrderItems.Any())
+                {
+                    // Group order items by order to update totals efficiently
+                    var ordersToUpdate = product.OrderItems
+                        .Where(oi => oi.Order != null)
+                        .GroupBy(oi => oi.Order);
+
+                    foreach (var group in ordersToUpdate)
+                    {
+                        var order = group.Key;
+                        var itemsToRemove = group.ToList();
+
+                        // Subtract price from order total
+                        foreach (var item in itemsToRemove)
+                        {
+                            order.TotalAmount -= (item.UnitPrice * item.Quantity);
+                            _dbContext.OrderItems.Remove(item);
+                        }
+
+                        // If total amount is 0 or less, or no items left, delete the order
+                        // Note: We need to check if there are other items in the order not related to this product
+                        var otherItemsExist = await _dbContext.OrderItems
+                            .AnyAsync(oi => oi.OrderId == order.Id && oi.ProductId != id);
+
+                        if (!otherItemsExist || order.TotalAmount <= 0)
+                        {
+                            _dbContext.Orders.Remove(order);
+                        }
+                    }
+                }
+
+                // Finally delete the product
+                _dbContext.Products.Remove(product);
+            }
         }
     }
 }

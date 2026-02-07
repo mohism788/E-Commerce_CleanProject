@@ -29,7 +29,6 @@ namespace E_Commerce.Controllers
 
         //Get reviews by product id
         [HttpGet("reviews/{productId}/reviews")]
-        [Authorize]
         public async Task<IActionResult> GetReviewsByProductId(int productId)
         {
             try
@@ -60,13 +59,15 @@ namespace E_Commerce.Controllers
             {
                 await _unitOfWork.BeginTransactionAsync();
                 try { 
-                _logger.LogInformation($"Creating review for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");
+                    var currentUserId = GetCurrentUserId();
+                    _logger.LogInformation($"Creating review for product with id {createReviewDto.ProductId} by user with id {currentUserId}");
                     var review = _mapper.Map<Review>(createReviewDto);
-                review.CreatedAt = DateTime.UtcNow;
-                await _unitOfWork.Reviews.AddAsync(review);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Review created successfully for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");
+                    review.UserId = currentUserId; // Force identity from token
+                    review.CreatedAt = DateTime.UtcNow;
+                    await _unitOfWork.Reviews.AddAsync(review);
+                    await _unitOfWork.SaveChangesAsync();
+                    await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation($"Review created successfully for product with id {review.ProductId} by user with id {currentUserId}");
                     return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
                 }
                 catch
@@ -134,7 +135,7 @@ namespace E_Commerce.Controllers
         }
 
         //delete certain review
-        [HttpDelete]
+        [HttpDelete("{id:int}")]
         [Authorize(Roles = "Customer,Admin")]
         public async Task<IActionResult> DeleteReview(int id)
         {
@@ -184,12 +185,15 @@ namespace E_Commerce.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId");
-            if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out Guid userId))
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
+                                                           c.Type == "sub" ||
+                                                           c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
+
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
-                return userId;
+                throw new UnauthorizedAccessException("User ID claim not found or invalid.");
             }
-            throw new UnauthorizedAccessException("User ID claim not found or invalid.");
+            return userId;
         }
 
     }

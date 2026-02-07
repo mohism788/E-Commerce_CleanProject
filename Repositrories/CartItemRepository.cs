@@ -22,6 +22,7 @@ namespace E_Commerce.Repositrories
         {
         
             var cartItems = await _dbContext.CartItems
+                .Include(ci => ci.Product)
                 .AsNoTracking()
                 .Where(ci => ci.UserId == userId)
                 .ToListAsync();

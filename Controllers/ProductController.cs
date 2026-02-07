@@ -7,6 +7,7 @@ using E_Commerce.Repositrories.UnitOfWork;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace E_Commerce.Controllers
 {
@@ -35,10 +36,30 @@ namespace E_Commerce.Controllers
 
                 var pagedResult = await _unitOfWork.Products.GetProductsAsync(queryParameters);
                 _logger.LogInformation($"Retrieved {pagedResult.Items.Count()} products (Page {pagedResult.Page} of {pagedResult.TotalPages}) with filters: Name={queryParameters.Name}, CategoryId={queryParameters.CategoryId}, MinPrice={queryParameters.MinPrice}, MaxPrice={queryParameters.MaxPrice}");
+                var products = _mapper.Map<IEnumerable<ProductDto>>(pagedResult.Items);
+
+                // Fetch seller names for all products on this page efficiently
+                var sellerIdStrings = products.Select(p => p.SellerId.ToString()).Distinct().ToList();
+                var sellers = await _unitOfWork.GetDbContext().Users
+                    .Where(u => sellerIdStrings.Contains(u.Id))
+                    .ToDictionaryAsync(u => u.Id, u => u.UserName);
+
+                foreach (var productDto in products)
+                {
+                    if (sellers.TryGetValue(productDto.SellerId.ToString(), out var userName))
+                    {
+                        productDto.SellerName = userName;
+                    }
+                    else
+                    {
+                        productDto.SellerName = "Verified Seller";
+                    }
+                }
+
                 return Ok(new
                 {
                     Success = true,
-                    Data = pagedResult.Items,
+                    Data = products,
                     Pagination = new
                     {
                         pagedResult.Page,
@@ -72,8 +93,15 @@ namespace E_Commerce.Controllers
                 {
                     return NotFound(new { Success = false, Message = $"Product with id {id} not found" });
                 }
+                var productDto = _mapper.Map<ProductDto>(product);
+                
+                // Fetch seller name
+                var seller = await _unitOfWork.GetDbContext().Users
+                    .FirstOrDefaultAsync(u => u.Id == product.SellerId.ToString());
+                productDto.SellerName = seller?.UserName ?? "Verified Seller";
+
                 _logger.LogInformation($"Product with id {id} retrieved successfully: {product.Name}");
-                return Ok(new { Success = true, Data = product });
+                return Ok(new { Success = true, Data = productDto });
             }
             catch (Exception ex)
             {

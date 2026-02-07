@@ -34,8 +34,9 @@ namespace E_Commerce.Controllers
             try
             {
                 var categories = await _unitOfWork.Categories.GetAllAsync();
-                _logger.LogInformation($"Retrieved {categories.Count()} categories");
-                return Ok(categories);
+                var categoryDtos = _mapper.Map<IEnumerable<CategoryDto>>(categories);
+                _logger.LogInformation($"Retrieved {categoryDtos.Count()} categories");
+                return Ok(categoryDtos);
             }
             catch (Exception ex)
             {

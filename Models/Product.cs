@@ -15,7 +15,7 @@ namespace E_Commerce.Models
         public DateTime CreatedAt { get; set; }
 
         //navigation property category, review, orderitems
-        public ICollection<Category> Categories { get; set; }
+        public Category Category { get; set; }
         public ICollection<Review> Reviews { get; set; }
         public ICollection<OrderItem> OrderItems { get; set; }
 

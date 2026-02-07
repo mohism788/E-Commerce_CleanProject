@@ -8,6 +8,7 @@
 
         //role
         public string Role { get; set; }
+        public Guid Id { get; set; }
 
     }
 }

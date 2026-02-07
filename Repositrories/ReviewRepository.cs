@@ -35,20 +35,21 @@ namespace E_Commerce.Repositrories
                  )
                  .ToListAsync();*/
 
-            return await _dbContext.Reviews
-                                          .AsNoTracking()
-                                          .Where(r => r.ProductId == productId)
-                                          .Include(r => r.User)   // Load related User
-                                          .Select(r => new ReviewDto
-                                          {
-                                              ProductId = r.ProductId,
-                                              Rating = r.Rating,
-                                              Comment = r.Comment,
-                                              CreatedAt = r.CreatedAt,
-                                              UserId = r.UserId,
-                                              Username = r.User.UserName
-                                          })
-                                          .ToListAsync();
+            var query = from r in _dbContext.Reviews
+                        join u in _dbContext.Users on r.UserId.ToString() equals u.Id
+                        where r.ProductId == productId
+                        select new ReviewDto
+                        {
+                            Id = r.Id,
+                            ProductId = r.ProductId,
+                            Rating = r.Rating,
+                            Comment = r.Comment,
+                            CreatedAt = r.CreatedAt,
+                            UserId = r.UserId,
+                            Username = u.UserName ?? u.Email ?? "Customer"
+                        };
+
+            return await query.ToListAsync();
 
         }
     }
