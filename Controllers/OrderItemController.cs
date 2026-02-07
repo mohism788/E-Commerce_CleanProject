@@ -58,34 +58,37 @@ namespace E_Commerce.Controllers
                 var currentUserId = GetCurrentUserId();
 
 
-                await _unitOfWork.BeginTransactionAsync();
-                try
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
 
-                    _logger.LogInformation($"Creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
-                    // Perform all operations
-                    await _unitOfWork.OrderItems.AddOrderItemAsync(createOrderItemDto);
+                        _logger.LogInformation($"Creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
+                        // Perform all operations
+                        await _unitOfWork.OrderItems.AddOrderItemAsync(createOrderItemDto);
 
-                    // Save changes
-                    await _unitOfWork.SaveChangesAsync();
+                        // Save changes
+                        await _unitOfWork.SaveChangesAsync();
 
-                    // Commit transaction
-                    await _unitOfWork.CommitTransactionAsync();
+                        // Commit transaction
+                        await _unitOfWork.CommitTransactionAsync();
 
-                    // Map and return
-                    var orderItem = _mapper.Map<OrderItem>(createOrderItemDto);
-                    var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
-                    _logger.LogInformation($"Order item created successfully for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
+                        // Map and return
+                        var orderItem = _mapper.Map<OrderItem>(createOrderItemDto);
+                        var orderItemDto = _mapper.Map<OrderItemDto>(orderItem);
+                        _logger.LogInformation($"Order item created successfully for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}");
 
-                    return CreatedAtAction(nameof(GetOrderItems), new { id = orderItem.Id }, orderItemDto);
-                }
-                catch
-                {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"Error occurred while creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}. Transaction rolled back.");
-                    throw;
-                }
+                        return CreatedAtAction(nameof(GetOrderItems), new { id = orderItem.Id }, orderItemDto);
+                    }
+                    catch
+                    {
+                        // Rollback on error
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"Error occurred while creating order item for user {currentUserId} with product {createOrderItemDto.ProductId} and quantity {createOrderItemDto.Quantity}. Transaction rolled back.");
+                        throw;
+                    }
+                });
 
 
                 }
@@ -104,37 +107,41 @@ namespace E_Commerce.Controllers
             {
                 var currentUserId = GetCurrentUserId();
                 
-                await _unitOfWork.BeginTransactionAsync();
-
-                try { 
-                    _logger.LogInformation($"Attempting to delete order item with id {id} for user {currentUserId}");
-
-                    var orderItem = await _unitOfWork.OrderItems.GetByIdAsync(id);
-
-                if (orderItem == null)
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    return NotFound($"Order item with id {id} not found");
-                }
+                    await _unitOfWork.BeginTransactionAsync();
 
-                // Ensure user can only delete items from their own order
-                if (orderItem.Order.UserId != currentUserId)
-                {
-                    return Forbid(); // or return Unauthorized();
-                }
+                    try
+                    {
+                        _logger.LogInformation($"Attempting to delete order item with id {id} for user {currentUserId}");
 
-                await _unitOfWork.OrderItems.DeleteAsync(orderItem.Id);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Order item with id {id} deleted successfully for user {currentUserId}");
-                    return NoContent();
-                }
-                catch
-                {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"An error occurred while deleting order item with id {id} for user {currentUserId}. Transaction rolled back.");
-                    throw;
-                }
+                        var orderItem = await _unitOfWork.OrderItems.GetByIdAsync(id);
+
+                        if (orderItem == null)
+                        {
+                            return NotFound($"Order item with id {id} not found");
+                        }
+
+                        // Ensure user can only delete items from their own order
+                        if (orderItem.Order.UserId != currentUserId)
+                        {
+                            return Forbid(); // or return Unauthorized();
+                        }
+
+                        await _unitOfWork.OrderItems.DeleteAsync(orderItem.Id);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation($"Order item with id {id} deleted successfully for user {currentUserId}");
+                        return NoContent();
+                    }
+                    catch
+                    {
+                        // Rollback on error
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"An error occurred while deleting order item with id {id} for user {currentUserId}. Transaction rolled back.");
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -150,9 +157,7 @@ namespace E_Commerce.Controllers
         }
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
-                                                              c.Type == ClaimTypes.NameIdentifier ||
-                                                              c.Type == "sub");
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
 
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {

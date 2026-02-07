@@ -41,12 +41,12 @@ namespace E_Commerce.Controllers
                 // Fetch seller names for all products on this page efficiently
                 var sellerIdStrings = products.Select(p => p.SellerId.ToString()).Distinct().ToList();
                 var sellers = await _unitOfWork.GetDbContext().Users
-                    .Where(u => sellerIdStrings.Contains(u.Id))
+                    .Where(u => sellerIdStrings.Contains(u.Id.ToString()))
                     .ToDictionaryAsync(u => u.Id, u => u.UserName);
 
                 foreach (var productDto in products)
                 {
-                    if (sellers.TryGetValue(productDto.SellerId.ToString(), out var userName))
+                    if (sellers.TryGetValue(productDto.SellerId, out var userName))
                     {
                         productDto.SellerName = userName;
                     }
@@ -97,7 +97,7 @@ namespace E_Commerce.Controllers
                 
                 // Fetch seller name
                 var seller = await _unitOfWork.GetDbContext().Users
-                    .FirstOrDefaultAsync(u => u.Id == product.SellerId.ToString());
+                    .FirstOrDefaultAsync(u => u.Id.ToString() == product.SellerId.ToString());
                 productDto.SellerName = seller?.UserName ?? "Verified Seller";
 
                 _logger.LogInformation($"Product with id {id} retrieved successfully: {product.Name}");
@@ -130,23 +130,27 @@ namespace E_Commerce.Controllers
                     CategoryId = createProductDto.CategoryId
                 };
 
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                    _logger.LogInformation($"Adding new product '{product.Name}' for seller {sellerId}");
-                    await _unitOfWork.Products.AddAsync(product);
-                       await _unitOfWork.SaveChangesAsync();
-                       await _unitOfWork.CommitTransactionAsync();
-
-                        _logger.LogInformation($"Product '{product.Name}' added successfully with id {product.Id}");
-                    return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
-                }
-                catch
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"Error occurred while adding product '{product.Name}' for seller {sellerId}. Transaction rolled back.");
-                    throw;
-                }
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    { 
+                        _logger.LogInformation($"Adding new product '{product.Name}' for seller {sellerId}");
+                        await _unitOfWork.Products.AddAsync(product);
+                           await _unitOfWork.SaveChangesAsync();
+                           await _unitOfWork.CommitTransactionAsync();
+
+                            _logger.LogInformation($"Product '{product.Name}' added successfully with id {product.Id}");
+                        return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
+                    }
+                    catch
+                    {
+                        // Rollback on error
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"Error occurred while adding product '{product.Name}' for seller {sellerId}. Transaction rolled back.");
+                        throw;
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -166,34 +170,37 @@ namespace E_Commerce.Controllers
             {
                 var currentUserId = GetCurrentUserId();
 
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                    _logger.LogInformation($"Updating product with id {id} for seller {currentUserId}");
-                    var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
-                       
-                       if (existingProduct == null)
-                       {
-                           return NotFound($"Product with id {id} not found");
-                       }
-                       if (existingProduct.SellerId != currentUserId)
-                       {
-                           return Forbid(); // or return Unauthorized();
-                       }
-                       _mapper.Map(updateProductDto, existingProduct);
-                       await _unitOfWork.Products.UpdateAsync(existingProduct);
-                       await _unitOfWork.SaveChangesAsync();
-                       await _unitOfWork.CommitTransactionAsync();
-
-                    _logger.LogInformation($"Product with id {id} updated successfully for seller {currentUserId}");
-                    return Ok(new { message = "Product updated successfully" });
-                }
-                catch
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"Error occurred while updating product with id {id} for seller {currentUserId}. Transaction rolled back.");
-                    throw;
-                }
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
+                        _logger.LogInformation($"Updating product with id {id} for seller {currentUserId}");
+                        var existingProduct = await _unitOfWork.Products.GetByIdAsync(id);
+
+                        if (existingProduct == null)
+                        {
+                            return NotFound($"Product with id {id} not found");
+                        }
+                        if (existingProduct.SellerId != currentUserId)
+                        {
+                            return Forbid();
+                        }
+                        _mapper.Map(updateProductDto, existingProduct);
+                        await _unitOfWork.Products.UpdateAsync(existingProduct);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+
+                        _logger.LogInformation($"Product with id {id} updated successfully for seller {currentUserId}");
+                        return Ok(new { message = "Product updated successfully" });
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"Error occurred while updating product with id {id} for seller {currentUserId}. Transaction rolled back.");
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -215,11 +222,13 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                    _logger.LogInformation($"Deleting product with id {id} for seller {currentUserId}");
-                    var product = await _unitOfWork.Products.GetByIdAsync(id);
-
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
+                {
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
+                        _logger.LogInformation($"Deleting product with id {id} for seller {currentUserId}");
+                        var product = await _unitOfWork.Products.GetByIdAsync(id);
 
                         if (product == null)
                         {
@@ -227,22 +236,21 @@ namespace E_Commerce.Controllers
                         }
                         if (product.SellerId != currentUserId)
                         {
-                            return Forbid(); // or return Unauthorized();
+                            return Forbid();
                         }
 
                         await _unitOfWork.Products.DeleteAsync(id);
                         await _unitOfWork.SaveChangesAsync();
                         await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Product with id {id} deleted successfully for seller {currentUserId}");
-                    return Ok(new { message = "Product deleted successfully" });
-                }
-                catch
-                {
-                    // Rollback on error
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"An error occurred while deleting product with id {id} for seller {currentUserId}. Transaction rolled back.");
-                    throw;
-                }
+                        _logger.LogInformation($"Product with id {id} deleted successfully for seller {currentUserId}");
+                        return Ok(new { message = "Product deleted successfully" });
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -260,9 +268,7 @@ namespace E_Commerce.Controllers
         //get user by token
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
-                                                           c.Type == ClaimTypes.NameIdentifier ||
-                                                           c.Type == "sub");
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
 
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
@@ -274,4 +280,3 @@ namespace E_Commerce.Controllers
     }
     
 }
-

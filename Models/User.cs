@@ -2,7 +2,7 @@
 
 namespace E_Commerce.Models
 {
-    public class User :IdentityUser
+    public class User : IdentityUser<Guid>
     {
         
         public DateTime CreatedAt { get; set; }

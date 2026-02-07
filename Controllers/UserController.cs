@@ -76,7 +76,7 @@ namespace E_Commerce.Controllers
                         Email = user.Email,
                         Token = await _tokenService.CreateToken(user),
                         Role = role,
-                        Id = Guid.Parse(user.Id)
+                        Id = Guid.Parse(user.Id.ToString())
                     });
             }
             catch (Exception ex)
@@ -110,7 +110,7 @@ namespace E_Commerce.Controllers
                         Token = await _tokenService.CreateToken(user),
                         Email = user.Email,
                         Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Customer",
-                        Id = Guid.Parse(user.Id)
+                        Id = user.Id
                     });
             }
             catch (Exception ex)

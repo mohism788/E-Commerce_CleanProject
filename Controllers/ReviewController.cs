@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Security.Claims;
+using AutoMapper;
 using E_Commerce.DTOs.ReviewDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
@@ -57,25 +58,29 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                    var currentUserId = GetCurrentUserId();
-                    _logger.LogInformation($"Creating review for product with id {createReviewDto.ProductId} by user with id {currentUserId}");
-                    var review = _mapper.Map<Review>(createReviewDto);
-                    review.UserId = currentUserId; // Force identity from token
-                    review.CreatedAt = DateTime.UtcNow;
-                    await _unitOfWork.Reviews.AddAsync(review);
-                    await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Review created successfully for product with id {review.ProductId} by user with id {currentUserId}");
-                    return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
-                }
-                catch
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"An error occurred while creating review for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");  
-                    throw;
-                }
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
+                        var currentUserId = GetCurrentUserId();
+                        _logger.LogInformation($"Creating review for product with id {createReviewDto.ProductId} by user with id {currentUserId}");
+                        var review = _mapper.Map<Review>(createReviewDto);
+                        review.UserId = currentUserId; // Force identity from token
+                        review.CreatedAt = DateTime.UtcNow;
+                        await _unitOfWork.Reviews.AddAsync(review);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation($"Review created successfully for product with id {review.ProductId} by user with id {currentUserId}");
+                        return CreatedAtAction(nameof(GetReviewsByProductId), new { productId = review.ProductId }, review);
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"An error occurred while creating review for product with id {createReviewDto.ProductId} by user with id {GetCurrentUserId()}");
+                        throw;
+                    }
+                });
             }
 
             catch (Exception ex)
@@ -94,32 +99,35 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                await _unitOfWork.BeginTransactionAsync();
-                try
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    _logger.LogInformation($"Updating review with id {id} by user with id {currentUserId}");
-                    var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
-                    if (existingReview == null)
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
                     {
-                        return NotFound($"Review with id {id} not found");
+                        _logger.LogInformation($"Updating review with id {id} by user with id {currentUserId}");
+                        var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
+                        if (existingReview == null)
+                        {
+                            return NotFound($"Review with id {id} not found");
+                        }
+                        if (existingReview.UserId != currentUserId)
+                        {
+                            return Forbid(); // or return Unauthorized();
+                        }
+                        _mapper.Map(updateReviewDto, existingReview);
+                        await _unitOfWork.Reviews.UpdateAsync(existingReview);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation($"Review with id {id} updated successfully by user with id {currentUserId}");
+                        return NoContent();
                     }
-                    if (existingReview.UserId != currentUserId)
+                    catch
                     {
-                        return Forbid(); // or return Unauthorized();
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"An error occurred while updating review with id {id} by user with id {currentUserId}");
+                        throw;
                     }
-                    _mapper.Map(updateReviewDto, existingReview);
-                    await _unitOfWork.Reviews.UpdateAsync(existingReview);
-                    await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Review with id {id} updated successfully by user with id {currentUserId}");
-                    return NoContent();
-                }
-                catch
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError($"An error occurred while updating review with id {id} by user with id {currentUserId}");
-                    throw;
-                }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -142,32 +150,36 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                    _logger.LogInformation($"Deleting review with id {id} by user with id {currentUserId}");
-                    var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
+                {
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
+                        _logger.LogInformation($"Deleting review with id {id} by user with id {currentUserId}");
+                        var existingReview = await _unitOfWork.Reviews.GetByIdAsync(id);
 
-                         if (existingReview == null)
-                         {
-                             return NotFound($"Review with id {id} not found");
-                         }
-                         if (existingReview.UserId != currentUserId && !User.IsInRole("Admin"))
-                         {
-                             return Forbid(); // or return Unauthorized();
-                         }
+                        if (existingReview == null)
+                        {
+                            return NotFound($"Review with id {id} not found");
+                        }
+                        if (existingReview.UserId != currentUserId && !User.IsInRole("Admin"))
+                        {
+                            return Forbid(); // or return Unauthorized();
+                        }
 
-                         await _unitOfWork.Reviews.DeleteAsync(existingReview.Id);
-                         await _unitOfWork.SaveChangesAsync();
-                           await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation($"Review with id {id} deleted successfully by user with id {currentUserId}");
-                    return NoContent();
-                         }
-                         catch
-                         {
-                             await _unitOfWork.RollbackTransactionAsync();
-                             _logger.LogError($"An error occurred while deleting review with id {id} by user with id {currentUserId}");
-                             throw;
-                         }
+                        await _unitOfWork.Reviews.DeleteAsync(existingReview.Id);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation($"Review with id {id} deleted successfully by user with id {currentUserId}");
+                        return NoContent();
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError($"An error occurred while deleting review with id {id} by user with id {currentUserId}");
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -185,14 +197,13 @@ namespace E_Commerce.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
-                                                           c.Type == "sub" ||
-                                                           c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
 
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
-                throw new UnauthorizedAccessException("User ID claim not found or invalid.");
+                throw new UnauthorizedAccessException("User not authenticated");
             }
+
             return userId;
         }
 

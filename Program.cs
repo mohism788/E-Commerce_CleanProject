@@ -11,8 +11,11 @@ using E_Commerce.TokenService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Dapper;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,20 +57,33 @@ builder.Services.AddSwaggerGen(option =>
 });
 
 // Add DbContext
+//builder.Services.AddDbContext<ApplicationDbContext>(options =>
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null
+        )
+    ));
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
-builder.Services.AddIdentity<User,IdentityRole>(options =>
+builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
 {
+    options.Password.RequireDigit = false;
+    options.Password.RequiredLength = 4;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireLowercase = false;
 }).AddEntityFrameworkStores<ApplicationDbContext>();
 
 builder.Services.AddAuthentication(options =>
@@ -91,7 +107,7 @@ options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenVali
     IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
         System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JWT:SigningKey"])
         ),
-    NameClaimType = JwtRegisteredClaimNames.Sub
+    NameClaimType = ClaimTypes.NameIdentifier
 
 };
 }
@@ -126,14 +142,70 @@ if (app.Environment.IsDevelopment())
         options.DisplayRequestDuration(); // Show request duration
     });
 
+    app.UseStaticFiles();
+    app.MapFallbackToFile("index.html");
+
     // Optional: Redirect root to Swagger
     app.MapGet("/", () => Results.Redirect("/swagger"));
 }
 
+// Basic reachability test
+app.MapGet("/ping", () => Results.Ok("Pong! App is running.")).AllowAnonymous();
+
+// Database connection test
+app.MapGet("/db-test", async (IConfiguration configuration) =>
+{
+    var connectionString = configuration.GetConnectionString("DefaultConnection");
+    try
+    {
+        using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        return Results.Ok(new { Success = true, Message = "Connected to MonsterASP DB!" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Connection failed: {ex.Message}");
+    }
+}).AllowAnonymous();
+
+// Automatically apply migrations and seed data on startup
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        Console.WriteLine("Applying migrations to the remote database...");
+        await context.Database.MigrateAsync();
+        Console.WriteLine("Migrations applied successfully. Seeding data...");
+        await DbInitializer.SeedAsync(services);
+        Console.WriteLine("Database initialization complete.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("--------------------------------------------------");
+        Console.WriteLine($"FATAL DATABASE ERROR: {ex.Message}");
+        Console.WriteLine($"STACK TRACE: {ex.StackTrace}");
+        if (ex.InnerException != null) 
+        {
+            Console.WriteLine($"INNER ERROR: {ex.InnerException.Message}");
+            Console.WriteLine($"INNER STACK: {ex.InnerException.StackTrace}");
+        }
+        Console.WriteLine("--------------------------------------------------");
+        
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+    }
+}
+// app.UseHttpsRedirection();
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+app.UseRouting();
 app.UseCors();
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 
 app.Run();

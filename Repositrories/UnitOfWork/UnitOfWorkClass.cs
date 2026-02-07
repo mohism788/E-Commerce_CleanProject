@@ -206,6 +206,18 @@ namespace E_Commerce.Data
             }
         }
 
+        public async Task ExecuteActionStrategyAsync(Func<Task> action)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(action);
+        }
+
+        public async Task<T> ExecuteResultStrategyAsync<T>(Func<Task<T>> action)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync<T>(action);
+        }
+
         public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> action,
             IsolationLevel isolationLevel = IsolationLevel.ReadCommitted)
         {

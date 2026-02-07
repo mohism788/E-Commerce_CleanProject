@@ -23,7 +23,7 @@ namespace E_Commerce.TokenService
             var roles = await _userManager.GetRolesAsync(user);
 
             var claims = new List<Claim>
-            {   new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+            {   new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim(JwtRegisteredClaimNames.GivenName, user.UserName)
             };

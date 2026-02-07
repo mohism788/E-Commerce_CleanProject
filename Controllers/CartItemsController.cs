@@ -96,28 +96,50 @@ namespace E_Commerce.Controllers
                 {
                     return Forbid(); // or BadRequest("Cannot add items to another user's cart");
                 }
-                await _unitOfWork.BeginTransactionAsync();
-                try
+
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    _logger.LogInformation("Customer {CustomerId} is adding a new cart item for user {UserId}", currentUserId, createCartItemDto.userId);
-                    var cartItem = _mapper.Map<CartItem>(createCartItemDto);
-                    await _unitOfWork.CartItems.AddAsync(cartItem);
-                    _logger.LogInformation("Cart item added to database context for user {UserId}", createCartItemDto.userId);
-                    await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation("Cart item added successfully for user {UserId}", createCartItemDto.userId);
-                    return StatusCode(201, new
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
                     {
-                        success = true,
-                        message = "Cart item Added successfully"
-                    });
-                }
-                catch
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError("An error occurred while adding a cart item for user {UserId} by customer {CustomerId}. Transaction rolled back.", createCartItemDto.userId, currentUserId);
-                    throw;
-                }
+                        _logger.LogInformation("Customer {CustomerId} is adding a new cart item for user {UserId}", currentUserId, createCartItemDto.userId);
+
+                        // Stock Check
+                        var product = await _unitOfWork.Products.GetByIdAsync(createCartItemDto.ProductId);
+                        if (product == null)
+                        {
+                            return NotFound(new { success = false, message = "Product not found" });
+                        }
+
+                        if (product.Stock == 0)
+                        {
+                            return BadRequest(new { success = false, message = "Sorry, this product is currently out of stock." });
+                        }
+
+                        if (product.Stock < createCartItemDto.Quantity)
+                        {
+                            return BadRequest(new { success = false, message = $"Sorry, only {product.Stock} units of {product.Name} are available." });
+                        }
+
+                        var cartItem = _mapper.Map<CartItem>(createCartItemDto);
+                        await _unitOfWork.CartItems.AddAsync(cartItem);
+                        _logger.LogInformation("Cart item added to database context for user {UserId}", createCartItemDto.userId);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation("Cart item added successfully for user {UserId}", createCartItemDto.userId);
+                        return StatusCode(201, new
+                        {
+                            success = true,
+                            message = "Cart item Added successfully"
+                        });
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError("An error occurred while adding a cart item for user {UserId} by customer {CustomerId}. Transaction rolled back.", createCartItemDto.userId, currentUserId);
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -140,35 +162,38 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
-                await _unitOfWork.BeginTransactionAsync();
-                try
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
-                    var cartItem = await _unitOfWork.CartItems.GetByIdAsync(id);
-                    _logger.LogInformation("Customer {CustomerId} is attempting to delete cart item with id {CartItemId}", currentUserId, id);
-                    // Ensure user can only delete items from their own cart
-                    if (cartItem.UserId != currentUserId)
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
                     {
-                        return Forbid(); // or return Unauthorized();
-                    }
+                        var cartItem = await _unitOfWork.CartItems.GetByIdAsync(id);
+                        _logger.LogInformation("Customer {CustomerId} is attempting to delete cart item with id {CartItemId}", currentUserId, id);
+                        // Ensure user can only delete items from their own cart
+                        if (cartItem.UserId != currentUserId)
+                        {
+                            return Forbid(); // or return Unauthorized();
+                        }
 
-                    if (cartItem == null)
+                        if (cartItem == null)
+                        {
+                            return NotFound(new { success = false, message = "Cart item not found" });
+                        }
+
+
+                        await _unitOfWork.CartItems.DeleteAsync(id);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation("Cart item with id {CartItemId} deleted successfully for user {CustomerId}", id, currentUserId);
+                        return Ok(new { success = true, message = "Cart item deleted successfully" });
+                    }
+                    catch
                     {
-                        return NotFound(new { success = false, message = "Cart item not found" });
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError("An error occurred while deleting cart item with id {CartItemId} for user {CustomerId}. Transaction rolled back.", id, currentUserId);
+                        throw;
                     }
-
-
-                    await _unitOfWork.CartItems.DeleteAsync(id);
-                    await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation("Cart item with id {CartItemId} deleted successfully for user {CustomerId}", id, currentUserId);
-                    return Ok(new { success = true, message = "Cart item deleted successfully" });
-                }
-                catch
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError("An error occurred while deleting cart item with id {CartItemId} for user {CustomerId}. Transaction rolled back.", id, currentUserId);
-                    throw;
-                }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -198,25 +223,28 @@ namespace E_Commerce.Controllers
                     return Forbid(); // or return Unauthorized();
                 }
                 _logger.LogInformation("Customer {CustomerId} is attempting to delete the whole cart for user {UserId}", currentUserId, userId);
-                await _unitOfWork.BeginTransactionAsync();
-                try
+                return await _unitOfWork.ExecuteResultStrategyAsync<IActionResult>(async () =>
                 {
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
+                    {
 
-                    await _unitOfWork.CartItems.DeleteWholeCartByUserIdAsync(userId);
-                    _logger.LogInformation("Cart items for user {UserId} marked for deletion in database context", userId);
+                        await _unitOfWork.CartItems.DeleteWholeCartByUserIdAsync(userId);
+                        _logger.LogInformation("Cart items for user {UserId} marked for deletion in database context", userId);
 
-                    await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation("Whole cart deleted successfully for user {UserId} by customer {CustomerId}", userId, currentUserId);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        _logger.LogInformation("Whole cart deleted successfully for user {UserId} by customer {CustomerId}", userId, currentUserId);
 
-                    return Ok(new { success = true, message = "Whole cart deleted successfully" });
-                }
-                catch
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError("An error occurred while deleting the whole cart for user {UserId} by customer {CustomerId}. Transaction rolled back.", userId, currentUserId);
-                    throw;
-                }
+                        return Ok(new { success = true, message = "Whole cart deleted successfully" });
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        _logger.LogError("An error occurred while deleting the whole cart for user {UserId} by customer {CustomerId}. Transaction rolled back.", userId, currentUserId);
+                        throw;
+                    }
+                });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -234,9 +262,7 @@ namespace E_Commerce.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
-                                                              c.Type == ClaimTypes.NameIdentifier ||
-                                                              c.Type == "sub");
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
 
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {

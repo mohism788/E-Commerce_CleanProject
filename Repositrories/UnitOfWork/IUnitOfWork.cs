@@ -26,6 +26,10 @@ namespace E_Commerce.Repositrories.UnitOfWork
         Task RollbackTransactionAsync();
         public ApplicationDbContext GetDbContext();
 
+        // Execution Strategy for manual transactions (required for EnableRetryOnFailure)
+        Task ExecuteActionStrategyAsync(Func<Task> action);
+        Task<T> ExecuteResultStrategyAsync<T>(Func<Task<T>> action);
+
         // Check if transaction is active
         bool HasActiveTransaction { get; }
     }

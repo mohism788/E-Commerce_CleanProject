@@ -265,38 +265,42 @@ namespace E_Commerce.Controllers
             try
             {
                 var currentUserId = GetUserIdFromToken();
-                await _unitOfWork.BeginTransactionAsync();
-                try { 
-                var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
-                if (order == null)
+                return await _unitOfWork.ExecuteResultStrategyAsync<ActionResult<ApiResponse<string>>>(async () =>
                 {
-                    return NotFound(new ApiErrorResponse
+                    await _unitOfWork.BeginTransactionAsync();
+                    try
                     {
-                        Success = false,
-                        Message = $"Order with id {orderId} not found",
-                        StatusCode = StatusCodes.Status404NotFound
-                    });
-                }
+                        var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
+                        if (order == null)
+                        {
+                            return NotFound(new ApiErrorResponse
+                            {
+                                Success = false,
+                                Message = $"Order with id {orderId} not found",
+                                StatusCode = StatusCodes.Status404NotFound
+                            });
+                        }
 
-                if (order.UserId != currentUserId && !User.IsInRole("Admin"))
-                {
-                    return Forbid();
-                }
-                await _unitOfWork.Orders.DeleteAsync(order.Id);
-                await _unitOfWork.SaveChangesAsync();
-                    await _unitOfWork.CommitTransactionAsync();
-                    return Ok(new ApiResponse<string>
-                {
-                    Success = true,
-                    Data = null,
-                    Message = "Order deleted successfully"
+                        if (order.UserId != currentUserId && !User.IsInRole("Admin"))
+                        {
+                            return Forbid();
+                        }
+                        await _unitOfWork.Orders.DeleteAsync(order.Id);
+                        await _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.CommitTransactionAsync();
+                        return Ok(new ApiResponse<string>
+                        {
+                            Success = true,
+                            Data = null,
+                            Message = "Order deleted successfully"
+                        });
+                    }
+                    catch
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        throw;
+                    }
                 });
-                }
-                catch
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    throw;
-                }
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -365,7 +369,7 @@ namespace E_Commerce.Controllers
                     StatusCode = StatusCodes.Status400BadRequest
                 });
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Insufficient stock"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Insufficient stock") || ex.Message.Contains("Sorry,"))
             {
                 _logger.LogWarning("Checkout failed: {Message}", ex.Message);
 
@@ -436,26 +440,19 @@ namespace E_Commerce.Controllers
 
         // ========== Helper Methods ==========
 
+      
         private Guid GetUserIdFromToken()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "userId" ||
-                                                           c.Type == "sub" ||
-                                                           c.Type == ClaimTypes.NameIdentifier);
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
 
-            if (userIdClaim is null)
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
             {
-                throw new UnauthorizedAccessException("User ID claim is missing.");
-            }
-
-            if (!Guid.TryParse(userIdClaim.Value, out var userId))
-            {
-                throw new UnauthorizedAccessException("User ID claim is invalid.");
+                throw new UnauthorizedAccessException("User not authenticated");
             }
 
             return userId;
         }
 
-       
 
     }
 }
