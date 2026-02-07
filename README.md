@@ -24,7 +24,7 @@ A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Fr
 - **JWT Authentication:** Secure stateless authentication for all protected endpoints.
 
 ### 🛒 Dynamic E-Commerce Core
-- **Advanced Product Catalog:** Full CRUD operations with rich metadata, image support, and stock management.
+- **Advanced Product Catalog:** Full CRUD operations with rich metadata, and stock management.
 - **Smart Search & Filtering:** Filter products by category, price range, seller, and stock status.
 - **Persistent Shopping Cart:** Seamless cart management that persists across sessions.
 
