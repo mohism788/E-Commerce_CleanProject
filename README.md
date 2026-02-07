@@ -10,6 +10,11 @@
 A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Framework Core**. This backend powers the entire Berserk Tech ecosystem, handling authentication, product management, complex transactions, and order fulfillment with a focus on reliability and scalability.
 
 ---
+##  Quick Overview 
+**Frontend Demo:** [Live Showcase](https://thunderous-lollipop-92d1bf.netlify.app) *(vibe-coded to demo this API)*
+
+> **Note:** I'm a backend specialist. The frontend is a simple demo to showcase this API's capabilities.
+
 
 ## 🚀 Key Features
 
@@ -94,14 +99,14 @@ A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Fr
 - **Services:** Business logic layer (Order processing, Stock checks).
 - **Repositories:** Implementation of the Repository Pattern with Unit of Work.
 
----
 
-## 🤝 Contributing
+## 🚢 Deployment
 
-Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
+Hosted on **MonsterASP** with:
+- SQL Server database
+- Environment-based configuration
+- Automated migrations on startup
 
----
 
-## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+> **Built with a focus on backend excellence.** The frontend demo exists solely to showcase this API's capabilities in a real-world context.
