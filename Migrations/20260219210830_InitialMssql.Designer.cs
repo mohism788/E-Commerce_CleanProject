@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace E_Commerce.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260219183642_InitialMssql")]
+    [Migration("20260219210830_InitialMssql")]
     partial class InitialMssql
     {
         /// <inheritdoc />
@@ -61,9 +61,13 @@ namespace E_Commerce.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Categories");
                 });
@@ -91,6 +95,8 @@ namespace E_Commerce.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrderDate");
 
                     b.HasIndex("UserId");
 
@@ -147,7 +153,8 @@ namespace E_Commerce.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
@@ -165,6 +172,14 @@ namespace E_Commerce.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("Price");
+
+                    b.HasIndex("SellerId");
 
                     b.HasIndex("UserId");
 

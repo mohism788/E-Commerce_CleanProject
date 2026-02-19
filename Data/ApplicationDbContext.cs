@@ -39,6 +39,46 @@ namespace E_Commerce.Data
                 .Property(p => p.Price)
                 .HasPrecision(18, 2);
 
+            modelBuilder.Entity<Product>()
+                .Property(p => p.Name)
+                .HasMaxLength(450);
+
+            modelBuilder.Entity<Category>()
+                .Property(c => c.Name)
+                .HasMaxLength(450);
+
+            // Optimization Indexes
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.Name);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.Price);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.CreatedAt);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.CategoryId);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.SellerId);
+
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.UserId);
+
+            modelBuilder.Entity<Order>()
+                .HasIndex(o => o.OrderDate);
+
+            modelBuilder.Entity<Review>()
+                .HasIndex(r => r.ProductId);
+
+            modelBuilder.Entity<CartItem>()
+                .HasIndex(ci => ci.UserId);
+
+            modelBuilder.Entity<Category>()
+                .HasIndex(c => c.Name)
+                .IsUnique();
+
             // Configure table names
             modelBuilder.Entity<User>().ToTable("AspNetUsers");
             modelBuilder.Entity<IdentityRole<Guid>>().ToTable("AspNetRoles");
@@ -47,9 +87,6 @@ namespace E_Commerce.Data
             modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("AspNetUserLogins");
             modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("AspNetRoleClaims");
             modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("AspNetUserTokens");
-
-            // Remove the duplicate IdentityRole configuration
-            // DO NOT create a separate IdentityRole table
 
             // Seed roles into AspNetRoles table
             modelBuilder.Entity<IdentityRole<Guid>>().HasData(

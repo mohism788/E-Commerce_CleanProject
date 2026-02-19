@@ -95,7 +95,7 @@ namespace E_Commerce.Repositrories
         public async Task<List<CartItem>> GetCartItemsWithProductsAsync(Guid userId)
         {
             return await _context.CartItems
-                .AsNoTracking().Include(ci => ci.Product)
+                .Include(ci => ci.Product)
                 .Where(ci => ci.UserId == userId)
                 .ToListAsync();
         }

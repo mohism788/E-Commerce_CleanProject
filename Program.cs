@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 using Dapper;
+using E_Commerce.Services;
 
 
 
@@ -142,6 +143,7 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWorkClass>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 
 var app = builder.Build();
@@ -209,7 +211,7 @@ using (var scope = app.Services.CreateScope())
 
         Console.WriteLine("Migrations applied successfully. Seeding data...");
 
-        await DbInitializer.SeedAsync(services);
+        await DbSeed.SeedAsync(services);
 
         Console.WriteLine("Database initialization complete.");
     }
