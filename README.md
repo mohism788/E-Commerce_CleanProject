@@ -10,6 +10,14 @@
 A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Framework Core**. This backend powers the entire Berserk Tech ecosystem, handling authentication, product management, complex transactions, and order fulfillment with a focus on reliability and scalability.
 
 ---
+<<<<<<< HEAD
+=======
+##  Quick Overview 
+**Frontend Demo:** [Live Showcase](https://thunderous-lollipop-92d1bf.netlify.app) *(vibe-coded to demo this API)*
+
+> **Note:** I'm a backend specialist. The frontend is a simple demo to showcase this API's capabilities.
+
+>>>>>>> 7720a5633d24d302ad7162a9b44281e61e386d64
 
 ## 🚀 Key Features
 
@@ -19,7 +27,11 @@ A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Fr
 - **JWT Authentication:** Secure stateless authentication for all protected endpoints.
 
 ### 🛒 Dynamic E-Commerce Core
+<<<<<<< HEAD
 - **Advanced Product Catalog:** Full CRUD operations with rich metadata, image support, and stock management.
+=======
+- **Advanced Product Catalog:** Full CRUD operations with rich metadata, and stock management.
+>>>>>>> 7720a5633d24d302ad7162a9b44281e61e386d64
 - **Smart Search & Filtering:** Filter products by category, price range, seller, and stock status.
 - **Persistent Shopping Cart:** Seamless cart management that persists across sessions.
 
@@ -95,3 +107,16 @@ A robust, high-performance RESTful Web API built with **.NET 8** and **Entity Fr
 - **Repositories:** Implementation of the Repository Pattern with Unit of Work.
 
 
+<<<<<<< HEAD
+=======
+## 🚢 Deployment
+
+Hosted on **MonsterASP** with:
+- SQL Server database
+- Environment-based configuration
+- Automated migrations on startup
+
+
+
+> **Built with a focus on backend excellence.** The frontend demo exists solely to showcase this API's capabilities in a real-world context.
+>>>>>>> 7720a5633d24d302ad7162a9b44281e61e386d64
