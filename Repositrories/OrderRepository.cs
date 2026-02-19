@@ -20,7 +20,7 @@ namespace E_Commerce.Repositrories
         public async Task<IEnumerable<Order>> GetUserOrdersAsync(Guid userId)
         {
             return await _context.Orders
-                .Include(o => o.OrderItems)
+                .AsNoTracking().Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Product)
                 .Where(o => o.UserId == userId)
                 .OrderByDescending(o => o.OrderDate)
@@ -95,7 +95,7 @@ namespace E_Commerce.Repositrories
         public async Task<List<CartItem>> GetCartItemsWithProductsAsync(Guid userId)
         {
             return await _context.CartItems
-                .Include(ci => ci.Product)
+                .AsNoTracking().Include(ci => ci.Product)
                 .Where(ci => ci.UserId == userId)
                 .ToListAsync();
         }
@@ -122,7 +122,7 @@ namespace E_Commerce.Repositrories
         public override async Task<Order?> GetByIdAsync(int id)
         {
             return await _context.Orders
-                .Include(o => o.OrderItems)
+              .AsNoTracking().Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Product)
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
@@ -141,7 +141,7 @@ namespace E_Commerce.Repositrories
         public async Task<Order?> GetOrderDetailsAsync(int orderId)
         {
             return await _context.Orders
-                .Include(o => o.OrderItems)
+                .AsNoTracking().Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Product)
                 .Include(o => o.User)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
@@ -151,7 +151,7 @@ namespace E_Commerce.Repositrories
         public async Task<List<OrderItem>> GetOrderItemsAsync(int orderId)
         {
             return await _context.OrderItems
-                .Include(oi => oi.Product)
+                .AsNoTracking().Include(oi => oi.Product)
                 .Where(oi => oi.OrderId == orderId)
                 .ToListAsync();
         }
@@ -159,14 +159,14 @@ namespace E_Commerce.Repositrories
         // Check if user has any orders
         public async Task<bool> UserHasOrdersAsync(Guid userId)
         {
-            return await _context.Orders.AnyAsync(o => o.UserId == userId);
+            return await _context.Orders.AsNoTracking().AnyAsync(o => o.UserId == userId);
         }
 
         // Get recent orders for a user
         public async Task<List<Order>> GetRecentUserOrdersAsync(Guid userId, int count = 5)
         {
             return await _context.Orders
-                .Include(o => o.OrderItems)
+                .AsNoTracking().Include(o => o.OrderItems)
                 .Where(o => o.UserId == userId)
                 .OrderByDescending(o => o.OrderDate)
                 .Take(count)
@@ -177,7 +177,7 @@ namespace E_Commerce.Repositrories
         public async Task<decimal> GetTotalSpentByUserAsync(Guid userId)
         {
             return await _context.Orders
-                .Where(o => o.UserId == userId && o.Status == "Completed")
+               .AsNoTracking().Where(o => o.UserId == userId && o.Status == "Completed")
                 .SumAsync(o => o.TotalAmount);
         }
 

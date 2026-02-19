@@ -1,5 +1,4 @@
-﻿using System.Security.Claims;
-using AutoMapper;
+﻿using AutoMapper;
 using E_Commerce.DTOs.OrderItemDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.UnitOfWork;
@@ -10,7 +9,7 @@ namespace E_Commerce.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class OrderItemController : ControllerBase
+    public class OrderItemController : BaseApiController
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
@@ -140,6 +139,7 @@ namespace E_Commerce.Controllers
                         await _unitOfWork.RollbackTransactionAsync();
                         _logger.LogError($"An error occurred while deleting order item with id {id} for user {currentUserId}. Transaction rolled back.");
                         throw;
+
                     }
                 });
             }
@@ -155,18 +155,6 @@ namespace E_Commerce.Controllers
                 };
             }
         }
-        private Guid GetCurrentUserId()
-        {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
-
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
-            {
-                throw new UnauthorizedAccessException("User not authenticated");
-            }
-
-            return userId;
-        }
-
 
     }
 }

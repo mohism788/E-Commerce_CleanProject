@@ -1,8 +1,8 @@
 ﻿
-using System.Security.Claims;
 using AutoMapper;
 using E_Commerce.DTOs.OrderDTO;
 using E_Commerce.DTOs.OrderItemDTO;
+using E_Commerce.Models;
 using E_Commerce.Repositrories.UnitOfWork;
 using E_Commerce.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +12,7 @@ namespace E_Commerce.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class OrderController : ControllerBase
+    public class OrderController : BaseApiController
     {
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
@@ -76,7 +76,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdFromToken();
+                var currentUserId = GetCurrentUserId();
                 var order = await _unitOfWork.Orders.GetByIdAsync(orderId);
                 if (order == null)
                 {
@@ -133,7 +133,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdFromToken();
+                var currentUserId = GetCurrentUserId();
                 
                        
                  var orders = await _unitOfWork.Orders.GetUserOrdersAsync(userId);
@@ -204,7 +204,7 @@ namespace E_Commerce.Controllers
                 }
 
                 // Get userId from authentication token (not from parameter)
-                var userId = GetUserIdFromToken();
+                var userId = GetCurrentUserId();
                
                  var order = await _orderService.BuyNowAsync(userId, buyNowDto);
                  
@@ -264,7 +264,7 @@ namespace E_Commerce.Controllers
         {
             try
             {
-                var currentUserId = GetUserIdFromToken();
+                var currentUserId = GetCurrentUserId();
                 return await _unitOfWork.ExecuteResultStrategyAsync<ActionResult<ApiResponse<string>>>(async () =>
                 {
                     await _unitOfWork.BeginTransactionAsync();
@@ -336,7 +336,7 @@ namespace E_Commerce.Controllers
             try
             {
                 // Get userId from authentication token
-                var userId = GetUserIdFromToken();
+                var userId = GetCurrentUserId();
 
                 // Log the checkout attempt
                 _logger.LogInformation("Checkout initiated for user {UserId}", userId);
@@ -360,7 +360,7 @@ namespace E_Commerce.Controllers
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("Cart is empty"))
             {
-                _logger.LogWarning("Checkout failed: Cart is empty for user {UserId}", GetUserIdFromToken());
+                _logger.LogWarning("Checkout failed: Cart is empty for user {UserId}", GetCurrentUserId());
 
                 return BadRequest(new ApiErrorResponse
                 {
@@ -404,7 +404,7 @@ namespace E_Commerce.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during checkout for user {UserId}", GetUserIdFromToken());
+                _logger.LogError(ex, "Error during checkout for user {UserId}", GetCurrentUserId());
 
                 return StatusCode(StatusCodes.Status500InternalServerError,
                     new ApiErrorResponse
@@ -416,42 +416,6 @@ namespace E_Commerce.Controllers
             }
         }
 
-
-
-        // ========== Response Models ==========
-
-        public class ApiResponse<T>
-        {
-            public bool Success { get; set; }
-            public string Message { get; set; } = string.Empty;
-            public T? Data { get; set; }
-            public int? Count { get; set; }
-            public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-        }
-
-        public class ApiErrorResponse
-        {
-            public bool Success { get; set; } = false;
-            public string Message { get; set; } = string.Empty;
-            public List<string>? Errors { get; set; }
-            public int StatusCode { get; set; }
-            public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-        }
-
-        // ========== Helper Methods ==========
-
-      
-        private Guid GetUserIdFromToken()
-        {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
-
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
-            {
-                throw new UnauthorizedAccessException("User not authenticated");
-            }
-
-            return userId;
-        }
 
 
     }

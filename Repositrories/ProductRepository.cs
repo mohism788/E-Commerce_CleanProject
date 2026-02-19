@@ -22,6 +22,7 @@ namespace E_Commerce.Repositrories
         {
             var query = _dbContext.Products
             .Include(p => p.Category)  // Include category details
+            .AsNoTracking()
             .AsQueryable();
 
             // Apply filters

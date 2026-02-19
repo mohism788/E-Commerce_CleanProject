@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace E_Commerce.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreateCorrect : Migration
+    public partial class InitialMssql : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

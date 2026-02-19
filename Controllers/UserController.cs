@@ -9,7 +9,7 @@ namespace E_Commerce.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class UserController
+    public class UserController : ControllerBase
     {
         private readonly UserManager<User> _userManager;
         private readonly ITokenService _tokenService;

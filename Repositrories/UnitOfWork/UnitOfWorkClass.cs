@@ -7,8 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
 using E_Commerce.Exceptions;
-using E_Commerce.Models;
-using Microsoft.Extensions.Logging;
 
 namespace E_Commerce.Data
 {
@@ -120,6 +118,7 @@ namespace E_Commerce.Data
             _logger.LogInformation("Transaction started with isolation level {IsolationLevel}", isolationLevel);
         }
 
+
         public async Task CommitTransactionAsync()
         {
             if (_currentTransaction == null)
@@ -127,7 +126,6 @@ namespace E_Commerce.Data
 
             try
             {
-                await SaveChangesAsync();
                 await _currentTransaction.CommitAsync();
                 _logger.LogInformation("Transaction committed successfully");
             }

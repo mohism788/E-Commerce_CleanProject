@@ -11,9 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace E_Commerce.Controllers
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ProductController : ControllerBase
+    public class ProductController : BaseApiController
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
@@ -28,7 +26,7 @@ namespace E_Commerce.Controllers
 
 
         [HttpGet]
-        public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParameters queryParameters)
+        public async Task<IActionResult> GetProducts([FromQuery] ProductQueryParameters queryParameters, CancellationToken cancellationToken)
         {
             try
             {
@@ -39,10 +37,11 @@ namespace E_Commerce.Controllers
                 var products = _mapper.Map<IEnumerable<ProductDto>>(pagedResult.Items);
 
                 // Fetch seller names for all products on this page efficiently
-                var sellerIdStrings = products.Select(p => p.SellerId.ToString()).Distinct().ToList();
+                var sellerIds = products.Select(p => p.SellerId).Distinct().ToList();
                 var sellers = await _unitOfWork.GetDbContext().Users
-                    .Where(u => sellerIdStrings.Contains(u.Id.ToString()))
-                    .ToDictionaryAsync(u => u.Id, u => u.UserName);
+                    .AsNoTracking()
+                    .Where(u => sellerIds.Contains(u.Id))
+                    .ToDictionaryAsync(u => u.Id, u => u.UserName, cancellationToken);
 
                 foreach (var productDto in products)
                 {
@@ -83,7 +82,7 @@ namespace E_Commerce.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetProductById(int id)
+        public async Task<IActionResult> GetProductById(int id, CancellationToken cancellationToken)
         {
             try
             {
@@ -97,7 +96,8 @@ namespace E_Commerce.Controllers
                 
                 // Fetch seller name
                 var seller = await _unitOfWork.GetDbContext().Users
-                    .FirstOrDefaultAsync(u => u.Id.ToString() == product.SellerId.ToString());
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == product.SellerId, cancellationToken);
                 productDto.SellerName = seller?.UserName ?? "Verified Seller";
 
                 _logger.LogInformation($"Product with id {id} retrieved successfully: {product.Name}");
@@ -263,19 +263,6 @@ namespace E_Commerce.Controllers
                     StatusCode = 500
                 };
             }
-        }
-
-        //get user by token
-        private Guid GetCurrentUserId()
-        {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
-
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
-            {
-                throw new UnauthorizedAccessException("User not authenticated");
-            }
-
-            return userId;
         }
     }
     

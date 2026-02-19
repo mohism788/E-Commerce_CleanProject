@@ -114,7 +114,6 @@ namespace E_Commerce.Repositrories
                 order.TotalAmount = order.TotalAmount  + (product.Price * dto.Quantity);
                 order.OrderDate = DateTime.UtcNow;
 
-                //await _unitOfWork.SaveChangesAsync();
                 return newOrderItem;
             }
         }
@@ -156,15 +155,12 @@ namespace E_Commerce.Repositrories
 
         public override async Task<OrderItem?> GetByIdAsync(int id)
         {
-            // Add logging here too
-            Console.WriteLine($"Repository: Getting OrderItem with id {id}");
-
+         
             var orderItem = await _dbContext.OrderItems
                 .Include(oi => oi.Order) // Make sure this line is there
                 .AsNoTracking() // Remove this if present - it can prevent loading
                 .FirstOrDefaultAsync(oi => oi.Id == id);
 
-            Console.WriteLine($"Repository: OrderItem found: {orderItem != null}");
             if (orderItem != null)
             {
                 Console.WriteLine($"Repository: OrderItem.Order: {orderItem.Order}");

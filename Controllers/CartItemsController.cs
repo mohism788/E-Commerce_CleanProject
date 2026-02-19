@@ -1,5 +1,4 @@
-﻿using System.Security.Claims;
-using AutoMapper;
+﻿using AutoMapper;
 using E_Commerce.DTOs.CartItemDTO;
 using E_Commerce.Models;
 using E_Commerce.Repositrories.Interfaces;
@@ -12,7 +11,7 @@ namespace E_Commerce.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class CartItemsController : ControllerBase
+    public class CartItemsController : BaseApiController
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
@@ -259,18 +258,6 @@ namespace E_Commerce.Controllers
             }
         }
 
-
-        private Guid GetCurrentUserId()
-        {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
-
-            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
-            {
-                throw new UnauthorizedAccessException("User not authenticated");
-            }
-
-            return userId;
-        }
 
     }
 }

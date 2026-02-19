@@ -26,43 +26,34 @@ namespace E_Commerce.Repositrories
 
             public virtual async Task<IEnumerable<T>> GetAllAsync()
             {
-                return await _dbSet.ToListAsync();
+                return await _dbSet.AsNoTracking().ToListAsync();
             }
 
             public virtual async Task<T> AddAsync(T entity)
             {
-               
-                    await _dbSet.AddAsync(entity);
-                    return entity;
-            
+                await _dbSet.AddAsync(entity);
+                return entity;
             }
 
-            public virtual async Task UpdateAsync(T entity)
+            public virtual Task UpdateAsync(T entity)
             {
-                
-                    _dbSet.Update(entity);
-                
+                _dbSet.Update(entity);
+                return Task.CompletedTask;
             }
 
             public virtual async Task DeleteAsync(int id)
             {
-                try
+                var entity = await GetByIdAsync(id);
+                if (entity == null)
                 {
-                    var entity = await GetByIdAsync(id);
-                    if (entity != null)
-                    {
-                        _dbSet.Remove(entity);
-                    }
+                    throw new KeyNotFoundException($"Entity with id {id} not found");
                 }
-                catch
-                {
-                    throw new Exception($"Failed to delete entity with id {id}");
-                }
+                _dbSet.Remove(entity);
             }
+
             public virtual async Task<bool> ExistsAsync(int id)
             {
-                var entity = await GetByIdAsync(id);
-                return entity != null;
+                return await _dbSet.FindAsync(id) != null;
             }
 
             // Optional: Helper methods you might find useful
